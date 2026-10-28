@@ -17,8 +17,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M6: Partition analysis & lost volumes** | **Completed** | `pytest` (174/174), `ruff`, `mypy` strict passing | MBR, GPT header/array CRC32 checks, backup GPT fallback, FAT/exFAT/NTFS lost volume sweep, in-memory subdevice |
 | **M7: Disk imaging** | **Completed** | `pytest` (188/188), `ruff`, `mypy` strict passing | RangeStatusMap, copy/trim/scrape multi-pass imaging, ddrescue mapfile export, resume identity check, `recoverx image` CLI |
 | **M8: Application services & SQLite** | **Completed** | `pytest` (208/208), `ruff`, `mypy` strict passing | SQLite repositories, corruption backup/rebuild, JobManager locking, DeviceTriageService, ScanCoordinator 10-step, ReportService JSON/HTML |
-| **M9: Desktop UI (PySide6)** | Pending | - | Next milestone |
-| **M10: Windows device access** | Pending | - | - |
+| **M9: Desktop UI (PySide6)** | **Completed** | `pytest` (224/224), `ruff`, `mypy` strict passing | Modern light/dark theme, QThread worker threads, preview & destination dialogs, 7 pages, demo mode |
+| **M10: Windows device access** | Pending | - | Next milestone |
 | **M11: Extra formats & previews** | Pending | - | - |
 | **M12: NTFS metadata recovery** | Pending | - | - |
 | **M13: Packaging & release checks** | Pending | - | - |
@@ -441,6 +441,58 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M8): Desktop GUI with PySide6 (M9), Windows raw device helper (M10), additional carving formats (M11), NTFS MFT parsing (M12).
 * **Blockers:**
   * None. Ready for Milestone M9.
+
+---
+
+### Milestone M9: Desktop User Interface (PySide6)
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Modern Theme & Stylesheets (`src/recoverx/presentation/theme.py`):
+    * Light and Dark QSS theme definitions adhering to WCAG contrast standards.
+    * Polished component styling for sidebar navigation, cards, tables, status boxes, primary/danger buttons, and simulation banner.
+  * Worker Thread Architecture (`src/recoverx/presentation/workers.py`):
+    * `ScanWorker` and `RecoveryWorker` inheriting from `QThread`.
+    * Dedicated background execution with thread-safe Qt signals and slots (`progress_updated`, `scan_completed`, `scan_failed`, `scan_cancelled`, `recovery_completed`, `recovery_failed`).
+    * Cooperative cancellation support via `CancellationToken`. Zero UI thread blocking.
+  * Modal Dialogs (`src/recoverx/presentation/dialogs/`):
+    * `FilePreviewDialog`: Untrusted candidate preview with a 5 MiB resource limit, safe image decoding via `QPixmap`, plain text renderer, and non-crashing error fallback.
+    * `RecoveryDestinationDialog`: Real-time destination separation verification using `VolumeIdentityResolver`. Strictly refuses any destination on the same volume or physical disk (`DestinationOnSourceError`). Provides configurable collision policy options (`rename`, `skip`, `never_overwrite`).
+  * Modular Pages (`src/recoverx/presentation/pages/`):
+    * `DashboardPage`: Overview dashboard, safety banner, "Start New Recovery" action card, and SQLite recent sessions table.
+    * `DeviceSelectionPage`: Raw disk image loader, device identity grid, real-time hardware triage, capability matrix, and selection confirmation.
+    * `ScanConfigurationPage`: Fast metadata scan vs deep carving options, lost volume boot sweep toggle, and explicit deep carving time warnings.
+    * `ScanProgressPage`: Progress bar, live throughput calculation, candidate discovery counters, sector offsets, and graceful scan cancellation.
+    * `RecoveryResultsPage`: Discovered candidates table, filename search filter, status dropdown, multi-select operations ("Select Validated Only", "Select All", "Deselect All"), file preview trigger, and batch recovery launch.
+    * `RecoveryReportPage`: Forensic audit summary card, sector 0 SHA-256 fingerprint, factual honesty notice, and one-click JSON/HTML export buttons with file dialogs.
+    * `SettingsPage`: Light/Dark theme selector, engine capability matrix, and demo mode simulation toggle (OFF by default).
+  * Application Shell & Navigation (`src/recoverx/presentation/main_window.py`):
+    * `MainWindow(QMainWindow)` with persistent sidebar navigation (`QListWidget`), `QStackedWidget` routing across all 7 pages, status bar, and simulation banner.
+    * Safe `closeEvent` lifecycle management ensuring active background worker threads are gracefully terminated on window close.
+  * Simulation Demo Mode (`src/recoverx/presentation/demo.py`):
+    * Synthetic in-memory FAT16 disk image generator with deleted files (JPEG, text files) for zero-risk testing and demonstration.
+  * App Factory & CLI Integration:
+    * `src/recoverx/presentation/app.py`: `create_application()` and `main()` factory wiring services to the UI shell.
+    * `src/recoverx/cli.py`: Integrated `recoverx gui` CLI subcommand.
+  * Comprehensive UI Test Suite:
+    * `tests/unit/test_ui_workers.py`: ScanWorker execution, cancellation, and RecoveryWorker candidate extraction.
+    * `tests/unit/test_ui_dialogs.py`: Text preview, JPEG preview, size ceiling check, destination separation enforcement, and collision policy options.
+    * `tests/unit/test_ui_pages.py`: Page rendering, button signals, image loading, triage updates, search/filtering, selection helpers, and accessible attributes.
+    * `tests/unit/test_ui_main_window.py`: Window launch, sidebar routing, demo mode toggle, and full end-to-end smoke test from image selection to scan, results, and forensic report.
+  * Documentation:
+    * Added Section 7 to `docs/CAPABILITIES.md`.
+    * Added ADR 014 to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (151 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 144 source files in strict mode).
+  * `pytest`: Passed (224 passed, 2 skipped in 15.61s).
+* **Scope Boundaries:**
+  * Completed: Modern PySide6 desktop UI, worker threads, dialogs, pages, demo mode, tests, docs.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M9): Windows elevated physical device helper (M10), additional carving formats (M11), NTFS MFT parsing (M12).
+* **Blockers:**
+  * None. Ready for Milestone M10.
+
 
 
 

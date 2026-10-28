@@ -212,7 +212,34 @@ This document tracks all key technical, architectural, tooling, and dependency d
   7. Implement `ReportService` exporting forensic reports in both structured JSON and standalone, self-contained HTML formats.
 * **Rationale:** Satisfies CLAUDE.md Rules 1, 2, 4, 7, and Milestone M8 acceptance criteria.
 
+---
 
+## ADR 014: Desktop User Interface Architecture with PySide6, Non-Blocking Worker Threads, and Accessibility
 
-
+* **Status:** Accepted
+* **Context:** RecoverX requires a professional, high-performance Windows 10/11 x64 desktop GUI built with PySide6. Under CLAUDE.md Rules 1-7 and Section 14 of MASTER_PROMPT.md:
+  1. UI responsiveness: Scans, disk imaging, and file recoveries must run in dedicated background worker threads (`QThread` with signals and slots only; never touch widgets directly from worker threads).
+  2. Source safety: Source storage media remains strictly read-only by construction. The UI exposes no write, format, partition-wipe, or disk-repair options.
+  3. Destination separation: The recovery destination picker must actively verify separation against the source device and volume (`VolumeIdentityResolver`), immediately disabling confirmation if separation cannot be established.
+  4. Untrusted file preview: Recovered files are untrusted. Previews run with strict resource limits (5 MiB ceiling, dimension limits, safe Qt decoding, no crash on corrupt files).
+  5. Honest progress & factual status: Real-time progress displays factual metrics (bytes processed, sector numbers, elapsed time, throughput) with no fake progress or probabilistic recovery percentages.
+  6. Accessibility: All interactive widgets and pages must define accessible names and descriptions (`setAccessibleName`, `setAccessibleDescription`).
+  7. Simulation transparency: Demo mode is OFF by default. When enabled, a prominent warning banner is displayed indicating simulated synthetic storage.
+* **Decision:**
+  1. Implement `MainWindow(QMainWindow)` with a persistent sidebar (`QListWidget`), a central `QStackedWidget` hosting 7 modular pages, status bar, and top simulation banner.
+  2. Implement background threads `ScanWorker` and `RecoveryWorker` inheriting from `QThread`. Workers communicate strictly via Qt signals (`progress_updated`, `scan_completed`, `scan_failed`, `scan_cancelled`). Thread lifecycles are gracefully managed on exit via `closeEvent(event)`.
+  3. Implement modular pages:
+     - `DashboardPage`: Overview, safety banner, action buttons, and recent sessions table.
+     - `DeviceSelectionPage`: Raw disk image loader, device identity card, live hardware triage, and capability matrix.
+     - `ScanConfigurationPage`: Metadata scan vs deep carving options, lost volume sweep toggle, and realistic duration notices.
+     - `ScanProgressPage`: Progress bar, live throughput, candidate counters, sector offsets, and cancel button.
+     - `RecoveryResultsPage`: Discovered candidates table, filename search filter, status dropdown, multi-selection actions, preview button, and recovery button.
+     - `RecoveryReportPage`: Audit summary card, sector 0 SHA-256 fingerprint display, factual metrics, and JSON/HTML export buttons.
+     - `SettingsPage`: Light/Dark theme selector, capability matrix, and demo mode toggle.
+  4. Implement modal dialogs:
+     - `FilePreviewDialog`: Resource-limited preview with safe image/text decoding and graceful failure notices.
+     - `RecoveryDestinationDialog`: Enforces strict volume separation and provides collision policy choices (`rename`, `skip`, `never_overwrite`).
+  5. Implement `demo.py` for synthetic FAT16 disk images showcasing deleted file recovery without accessing physical drives.
+  6. Add `recoverx gui` CLI subcommand and application factory `create_application()`.
+* **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M9 acceptance criteria.
 

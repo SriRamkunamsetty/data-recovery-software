@@ -596,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Output acquisition results as formatted JSON",
     )
 
+    subparsers.add_parser("gui", help="Launch the RecoverX desktop graphical user interface")
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "scan":
@@ -606,6 +608,10 @@ def main(argv: list[str] | None = None) -> int:
         return _handle_partitions(args)
     if args.command == "image":
         return _handle_image(args)
+    if args.command == "gui":
+        from recoverx.presentation.app import main as gui_main
+
+        return gui_main()
 
     parser.print_help()
     return 0

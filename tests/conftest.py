@@ -1,6 +1,13 @@
 """Pytest configuration and global fixtures."""
 
+import os
+
 import pytest
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure test environment for headless Qt UI testing."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 @pytest.fixture

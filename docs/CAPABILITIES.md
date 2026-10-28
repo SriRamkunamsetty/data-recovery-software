@@ -81,3 +81,18 @@ Labels strictly follow the tri-state rating: **Supported**, **Partial**, or **No
 | **Scan Orchestrator (ScanCoordinator)** | **Supported** | Executes 10-step orchestration sequence: source identity validation -> triage -> imaging advice -> partition analysis -> metadata recovery -> explicit carving offer -> candidate merge/deduplication -> format validation -> factual status assignment. Deep carving never starts without explicit request. | Deep carving scans raw sector streams and can take substantial time on large storage devices. |
 | **Forensic Report Generation** | **Supported** | `ReportService` exports forensic recovery reports in machine-readable JSON and self-contained, responsive HTML with device identifiers, sector 0 SHA-256 fingerprint, partition layout, candidate breakdown, and factual honesty disclaimers. | HTML reports are static documents generated at completion of scan/recovery. |
 
+---
+
+## 7. Desktop User Interface (PySide6)
+
+| Feature | Status | Capabilities & Verified Scope | Honest Limitations |
+|---|---|---|---|
+| **Non-Blocking Worker Execution** | **Supported** | `ScanWorker` and `RecoveryWorker` run on dedicated `QThread` instances with Qt signal/slot communications. GUI never freezes or hangs during scans, carving, or file extraction. Cooperative cancellation via `CancellationToken`. | Worker threads communicate across Qt boundaries; widget manipulation from workers is prohibited. |
+| **Separation Enforcement Wizard** | **Supported** | `RecoveryDestinationDialog` integrates `VolumeIdentityResolver` live verification. Refuses destinations residing on the same volume or physical disk (`DestinationOnSourceError`) before extraction can be confirmed. | Ambiguous volume identities (e.g. unknown network shares) are refused for safety. |
+| **Resource-Capped File Preview** | **Supported** | `FilePreviewDialog` safely previews discovered candidates (images and plain text) with a strict 5 MiB ceiling and graceful error handling on corrupt bytes. Prevents GUI crashes on untrusted input. | Encrypted, malformed, or formats exceeding 5 MiB cannot be fully previewed in-process. |
+| **Factual Candidate Filtering & Search** | **Supported** | `RecoveryResultsPage` filters by filename and factual statuses (`Preview validated`, `Metadata recovered`, `Truncated`, `Corrupted`). Selection helpers for batch recovery without probabilistic percentages. | Search and filtering operate in-memory on session candidate lists. |
+| **Auditable Forensic Report Viewer** | **Supported** | `RecoveryReportPage` displays session audit metrics, sector 0 SHA-256 fingerprint, and provides one-click export to formatted JSON and standalone HTML reports. | Session reports must be loaded from an existing session record. |
+| **Simulation Demo Mode** | **Supported** | Interactive simulation mode with synthetic FAT16 disk images containing deleted files. Off by default with a prominent warning banner when active. | Demo mode operates strictly on in-memory/temporary synthetic images. |
+| **Theme & UI Accessibility** | **Supported** | Light and Dark modern stylesheets with WCAG-compliant contrast. All pages and controls provide descriptive `accessibleName` and `accessibleDescription` attributes. | System high-contrast mode can be configured via Light/Dark theme selector. |
+
+

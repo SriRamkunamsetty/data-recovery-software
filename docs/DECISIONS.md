@@ -83,3 +83,16 @@ This document tracks all key technical, architectural, tooling, and dependency d
 * **Status:** Pending Owner Selection
 * **Context:** A formal software license must be chosen by the project repository owner prior to release.
 * **Decision:** Marked as "Owner to decide" in `LICENSE`. Third-party notices and LGPL compliance requirements are documented.
+
+---
+
+## ADR 006: Read-Only Storage Abstraction and Fault Injection
+
+* **Status:** Accepted
+* **Context:** CLAUDE.md Rule 1 mandates that the source block device is strictly read-only by construction. The core recovery engines (carving, partition analysis, metadata parsing, disk imaging) must run identically over physical block devices and synthetic disk images without knowing the underlying medium. Robustness against hardware read failures, degraded sectors, and unexpected disconnections must be verifiable in tests.
+* **Decision:**
+  1. Define `ReadOnlyBlockDevice` abstract base class exposing strictly: `identity`, `device_info`, `size_bytes`, `logical_sector_size`, `read_at(offset, length)`, `close()`, and context manager support. No write, format, erase, or truncate methods exist.
+  2. Implement `DiskImageReader` opening images strictly with mode `"rb"`, asserting `handle.writable() is False`.
+  3. Implement `FaultInjectionReader` as a decorator around any `ReadOnlyBlockDevice`, capable of simulating unreadable bad sector ranges (`DeviceReadError`), short reads, latency/delays, and unexpected disconnections (`DeviceDisconnectedError`).
+  4. Implement `SyntheticImageBuilder` and `ImageHashSnapshot` to generate test disk images with known payloads and cryptographically prove that image bytes and hashes are 100% immutable across all read operations.
+* **Rationale:** Provides complete separation between storage I/O and recovery engines, enforces compile-time and runtime read-only safety, and provides deterministic testing of failing media scenarios.

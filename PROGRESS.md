@@ -16,8 +16,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M5b: exFAT metadata recovery** | **Completed** | `pytest` (142/142), `ruff`, `mypy` strict passing | exFAT VBR, backup VBR, entry-set checksum, NoFatChain, allocation bitmap, deleted entry recovery |
 | **M6: Partition analysis & lost volumes** | **Completed** | `pytest` (174/174), `ruff`, `mypy` strict passing | MBR, GPT header/array CRC32 checks, backup GPT fallback, FAT/exFAT/NTFS lost volume sweep, in-memory subdevice |
 | **M7: Disk imaging** | **Completed** | `pytest` (188/188), `ruff`, `mypy` strict passing | RangeStatusMap, copy/trim/scrape multi-pass imaging, ddrescue mapfile export, resume identity check, `recoverx image` CLI |
-| **M8: Application services & SQLite** | Pending | - | Next milestone |
-| **M9: Desktop UI (PySide6)** | Pending | - | - |
+| **M8: Application services & SQLite** | **Completed** | `pytest` (208/208), `ruff`, `mypy` strict passing | SQLite repositories, corruption backup/rebuild, JobManager locking, DeviceTriageService, ScanCoordinator 10-step, ReportService JSON/HTML |
+| **M9: Desktop UI (PySide6)** | Pending | - | Next milestone |
 | **M10: Windows device access** | Pending | - | - |
 | **M11: Extra formats & previews** | Pending | - | - |
 | **M12: NTFS metadata recovery** | Pending | - | - |
@@ -387,6 +387,61 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M7): Persistent SQLite scan session database (M8), desktop GUI (M9), elevated helper process (M10).
 * **Blockers:**
   * None. Ready for Milestone M8.
+
+---
+
+### Milestone M8: Application services, persistence, workers
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Domain & Concurrency Models (`src/recoverx/domain/session.py`):
+    * `RecoverySession` tracking session lifecycle, source path, device identity, triage status, and notes.
+    * `ScanJobRecord` tracking individual scan, imaging, and extraction executions.
+    * `DeviceTriageResult` encapsulating triage classification, recommendations, and scanning eligibility.
+    * `CancellationToken` providing thread-safe cooperative cancellation and checkpoints.
+    * Exceptions: `DuplicateSourceJobError`, `DestinationConflictError`, `DatabaseCorruptionError`, `ScanCancelledError`.
+  * SQLite Persistence & Corruption Recovery (`src/recoverx/infrastructure/persistence/`):
+    * `DatabaseManager`: WAL mode, foreign keys (`PRAGMA foreign_keys = ON`), synchronous=NORMAL, and automatic integrity verification (`PRAGMA integrity_check`).
+    * Non-destructive corruption recovery: when database corruption is detected, preserves a timestamped backup of the corrupted file (`.corrupt.<timestamp>`) and automatically rebuilds a clean database to unblock operations.
+    * Schema migrations tracking schema versions.
+    * Strict forensic compliance: verified that no raw recovered file content (bytes) is stored in SQLite (Rule 15 of `MASTER_PROMPT.md`).
+    * Repositories (`SessionRepository`, `JobRepository`, `CandidateRepository`, `PartitionRepository`) implemented with `INSERT INTO ... ON CONFLICT(...) DO UPDATE SET` clauses to avoid unintentional cascade deletion of child records.
+  * Concurrency and Resource Locking (`src/recoverx/services/job_manager.py`):
+    * `JobManager` enforces thread-safe mutual exclusion across active jobs.
+    * Rejects duplicate concurrent jobs on the same physical source device (`DuplicateSourceJobError`).
+    * Rejects concurrent operations targeting the same or nested destination paths (`DestinationConflictError`).
+    * Manages job tokens and ensures lock cleanup upon completion, failure, or cancellation.
+  * Storage Device Triage (`src/recoverx/services/device_triage_service.py`):
+    * Evaluates device health before scanning across all 6 master categories: controller failure (0 bytes / implausible size), readable with I/O errors (recommending raw imaging), BitLocker encryption detection (`-FVE-FS-` signature), damaged/missing partition tables, and supported filesystems.
+  * Forensic Orchestrator (`src/recoverx/services/scan_coordinator.py`):
+    * Executes the full 10-step sequence: source identification -> triage -> imaging advice -> partition analysis -> metadata recovery -> explicit carving offer -> candidate merge and deduplication -> format validation -> factual status assignment.
+    * Strict adherence: deep scan / carving NEVER starts without an explicit request (`enable_carving=False` by default).
+    * Candidate merging preserves rich metadata (original filename, directory path, timestamps) while upgrading validation status if verified by carving.
+  * Session Application Service (`src/recoverx/services/session_service.py`):
+    * Coordinates sessions, jobs, scans, and recovery extractions with database persistence and resource locking.
+  * Forensic Report Generator (`src/recoverx/services/report_service.py`):
+    * Exports structured JSON reports and clean, self-contained HTML reports with embedded styling, device fingerprints (sector 0 SHA-256), partition tables, candidate breakdowns, and factual integrity statements.
+  * Comprehensive Testing Suite:
+    * `tests/unit/test_persistence.py`: Repositories CRUD, corruption recovery (deliberate binary corruption, backup verification, and clean rebuild), verification of no content in SQLite.
+    * `tests/unit/test_job_manager.py`: Duplicate source job rejection, destination conflict rejection, cancellation signaling, lock cleanup.
+    * `tests/unit/test_device_triage_service.py`: Controller failure, fault-injected read errors, BitLocker signature, supported FAT32, blank disk.
+    * `tests/unit/test_scan_coordinator.py`: Deep scan never starts without request, carving when requested, candidate merging and status upgrading, cancellation token check.
+    * `tests/unit/test_report_service.py`: JSON export structure, HTML standalone rendering.
+    * `tests/integration/test_end_to_end_session.py`: Full end-to-end integration test from synthetic image with deleted FAT32 files -> session creation -> scan coordinator -> candidate persistence -> file recovery to safe destination -> hash verification -> report generation -> source immutability check.
+  * Documentation:
+    * Added Section 6 to `docs/CAPABILITIES.md` recording Application Services, Persistence, and Reporting as **Supported**.
+    * Added ADR 013 to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (131 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 124 source files in strict mode).
+  * `pytest`: Passed (208 passed, 2 skipped in 10.38s).
+* **Scope Boundaries:**
+  * Completed: DatabaseManager, schema migrations, repositories, JobManager, DeviceTriageService, ScanCoordinator, SessionService, ReportService, unit tests, end-to-end integration test.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M8): Desktop GUI with PySide6 (M9), Windows raw device helper (M10), additional carving formats (M11), NTFS MFT parsing (M12).
+* **Blockers:**
+  * None. Ready for Milestone M9.
+
 
 
 

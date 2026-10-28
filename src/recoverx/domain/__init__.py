@@ -21,13 +21,29 @@ from recoverx.domain.partition import PartitionInfo
 from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.report import RecoveryReport
 from recoverx.domain.scan import BadSectorRange, ScanJob, ScanProgress, SectorReadResult
+from recoverx.domain.session import (
+    CancellationToken,
+    DatabaseCorruptionError,
+    DestinationConflictError,
+    DeviceTriageResult,
+    DuplicateSourceJobError,
+    RecoverXError,
+    RecoverySession,
+    ScanCancelledError,
+    ScanJobRecord,
+)
 
 __all__ = [
     "BadSectorRange",
     "BlockRange",
+    "CancellationToken",
     "CandidateStatus",
+    "DatabaseCorruptionError",
+    "DestinationConflictError",
     "DeviceIdentity",
+    "DeviceTriageResult",
     "DeviceTriageStatus",
+    "DuplicateSourceJobError",
     "FileSystemInfo",
     "FileSystemType",
     "ImagingConfig",
@@ -35,11 +51,15 @@ __all__ = [
     "ImagingResult",
     "JobStatus",
     "PartitionInfo",
+    "RecoverXError",
     "RecoveryCandidate",
     "RecoveryReport",
     "RecoveryResult",
+    "RecoverySession",
     "RecoverySourceMethod",
+    "ScanCancelledError",
     "ScanJob",
+    "ScanJobRecord",
     "ScanProgress",
     "SectorReadResult",
     "SectorStatus",

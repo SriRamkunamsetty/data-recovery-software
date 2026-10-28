@@ -191,6 +191,28 @@ This document tracks all key technical, architectural, tooling, and dependency d
   6. Add CLI command `recoverx image SOURCE DESTINATION [--block-size] [--retries] [--delay] [--resume] [--no-trim] [--no-scrape] [--no-hash] [--json]`.
 * **Rationale:** Satisfies CLAUDE.md Rules 1, 2, 7, and Milestone M7 acceptance criteria.
 
+---
+
+## ADR 013: Application Services, Session Persistence in SQLite, Resource Locking, and Non-Destructive Rebuild
+
+* **Status:** Accepted
+* **Context:** The orchestration of multi-step forensic recovery involves managing state across sessions, jobs, candidates, and reports. Under CLAUDE.md Rule 2 and Section 15 of MASTER_PROMPT.md:
+  1. The database, work directories, and extracted files must never reside on the source medium.
+  2. Recovered file content (bytes) must NEVER be stored in SQLite. Only metadata, hashes, offsets, and paths are persisted.
+  3. Database corruption or migration failures must never compromise the source or block recovery; instead, a clear recovery path (backup corrupt database to `.corrupt.<timestamp>` and rebuild fresh schema) is required.
+  4. Concurrency constraints require that no two concurrent jobs run on the same source device (`DuplicateSourceJobError`) and no two concurrent jobs target conflicting destination directories (`DestinationConflictError`).
+  5. Deep carving must NEVER be launched silently; it requires an explicit user request.
+* **Decision:**
+  1. Implement `DatabaseManager` providing WAL mode, foreign keys, synchronous=NORMAL, and automatic integrity verification (`PRAGMA integrity_check`). Upon detecting database corruption, preserve a backup copy of the corrupted file with a timestamp and rebuild a clean database from scratch.
+  2. Implement repositories (`SessionRepository`, `JobRepository`, `CandidateRepository`, `PartitionRepository`) using atomic `ON CONFLICT(...) DO UPDATE SET` clauses to avoid unintentional cascade deletion of child records.
+  3. Implement `JobManager` with thread-safe source locking and destination path collision checking, supporting cooperative cancellation tokens (`CancellationToken`).
+  4. Implement `DeviceTriageService` categorizing devices into factual classifications: controller failure, readable with I/O errors (recommending imaging), BitLocker encryption, damaged partition table, or supported filesystems.
+  5. Implement `ScanCoordinator` executing the full 10-step sequence: source identification -> triage -> imaging recommendation -> partition analysis -> metadata recovery -> carving offer (never automatic) -> candidate merge and deduplication -> format validation -> factual reporting.
+  6. Implement `SessionService` providing high-level session creation, scan execution, and candidate extraction.
+  7. Implement `ReportService` exporting forensic reports in both structured JSON and standalone, self-contained HTML formats.
+* **Rationale:** Satisfies CLAUDE.md Rules 1, 2, 4, 7, and Milestone M8 acceptance criteria.
+
+
 
 
 

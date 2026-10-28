@@ -10,6 +10,13 @@ from recoverx.domain.enums import (
     RecoverySourceMethod,
 )
 from recoverx.domain.filesystem import FileSystemInfo
+from recoverx.domain.imaging import (
+    BlockRange,
+    ImagingConfig,
+    ImagingProgress,
+    ImagingResult,
+    SectorStatus,
+)
 from recoverx.domain.partition import PartitionInfo
 from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.report import RecoveryReport
@@ -17,11 +24,15 @@ from recoverx.domain.scan import BadSectorRange, ScanJob, ScanProgress, SectorRe
 
 __all__ = [
     "BadSectorRange",
+    "BlockRange",
     "CandidateStatus",
     "DeviceIdentity",
     "DeviceTriageStatus",
     "FileSystemInfo",
     "FileSystemType",
+    "ImagingConfig",
+    "ImagingProgress",
+    "ImagingResult",
     "JobStatus",
     "PartitionInfo",
     "RecoveryCandidate",
@@ -31,5 +42,6 @@ __all__ = [
     "ScanJob",
     "ScanProgress",
     "SectorReadResult",
+    "SectorStatus",
     "StorageDevice",
 ]

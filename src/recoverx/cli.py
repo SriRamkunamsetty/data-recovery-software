@@ -10,6 +10,7 @@ from recoverx._version import __version__
 from recoverx.carving.scanner import CarvingScanner
 from recoverx.config import CollisionPolicy
 from recoverx.domain.candidate import RecoveryCandidate
+from recoverx.domain.imaging import ImagingConfig, ImagingProgress
 from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.scan import ScanProgress
 from recoverx.filesystems.base import FileSystemParser
@@ -18,6 +19,7 @@ from recoverx.filesystems.fat.parser import FatFileSystem
 from recoverx.infrastructure.storage.image import DiskImageReader
 from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
 from recoverx.partitions.analyzer import PartitionAnalyzer
+from recoverx.services.disk_imaging_service import DiskImagingService
 from recoverx.services.recovery_service import RecoveryService
 
 
@@ -372,6 +374,83 @@ def _handle_partitions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_image(args: argparse.Namespace) -> int:
+    """Handle `recoverx image` command."""
+    source_path = Path(args.source).resolve()
+    if not source_path.exists():
+        sys.stderr.write(f"Error: Source image not found: {source_path}\n")
+        return 1
+
+    dest_path = Path(args.destination).resolve()
+
+    cfg = ImagingConfig(
+        block_size_bytes=args.block_size,
+        max_retries=args.retries,
+        retry_delay_seconds=args.delay,
+        enable_trim_pass=not args.no_trim,
+        enable_scrape_pass=not args.no_scrape,
+        compute_sha256=not args.no_hash,
+    )
+
+    def progress_callback(prog: ImagingProgress) -> None:
+        if not args.json:
+            sys.stderr.write(
+                f"\r[{prog.phase.upper()}] {prog.progress_percent:.1f}% "
+                f"({_format_size(prog.bytes_finished)} / {_format_size(prog.total_bytes)}) | "
+                f"Bad: {_format_size(prog.bad_bytes)} | "
+                f"Sec: {prog.current_sector} | Pass {prog.pass_number}"
+            )
+            sys.stderr.flush()
+
+    resolver = FakeVolumeIdentityResolver()
+    service = DiskImagingService(resolver=resolver)
+
+    try:
+        with DiskImageReader(source_path) as reader:
+            res = service.acquire_image(
+                source_device=reader,
+                destination_image_path=dest_path,
+                config=cfg,
+                resume=args.resume,
+                progress_callback=progress_callback if not args.json else None,
+            )
+    except Exception as e:
+        sys.stderr.write(f"\nError during disk acquisition: {e}\n")
+        return 1
+
+    if not args.json:
+        sys.stderr.write("\n\nAcquisition finished.\n")
+
+    if args.json:
+        out = {
+            "image_path": str(res.image_path),
+            "metadata_path": str(res.metadata_path),
+            "map_path": str(res.map_path),
+            "total_sectors": res.total_sectors,
+            "finished_sectors": res.finished_sectors,
+            "bad_sectors": res.bad_sectors,
+            "is_complete": res.is_complete,
+            "sha256": res.sha256_hash,
+            "elapsed_seconds": res.elapsed_seconds,
+            "notes": res.notes,
+        }
+        sys.stdout.write(json.dumps(out, indent=2) + "\n")
+    else:
+        sys.stdout.write(f"Destination Image : {res.image_path}\n")
+        sys.stdout.write(f"Total Sectors     : {res.total_sectors}\n")
+        sys.stdout.write(f"Finished Sectors  : {res.finished_sectors}\n")
+        sys.stdout.write(f"Bad Sectors       : {res.bad_sectors}\n")
+        status_str = "COMPLETE" if res.is_complete else "INCOMPLETE"
+        sys.stdout.write(f"Acquisition Status: {status_str}\n")
+        if res.sha256_hash:
+            sys.stdout.write(f"SHA-256 Checksum  : {res.sha256_hash}\n")
+        sys.stdout.write(f"Elapsed Time      : {res.elapsed_seconds:.2f}s\n")
+        for note in res.notes:
+            sys.stdout.write(f"Note: {note}\n")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -467,6 +546,56 @@ def main(argv: list[str] | None = None) -> int:
         help="Force deep boot-sector sweep to discover lost/orphaned volumes",
     )
 
+    # `image` command
+    img_parser = subparsers.add_parser(
+        "image", help="Acquire a multi-pass raw disk image with bad sector mapping"
+    )
+    img_parser.add_argument("source", help="Source disk image or block device path")
+    img_parser.add_argument("destination", help="Destination path for raw image file (.raw/.img)")
+    img_parser.add_argument(
+        "--block-size",
+        type=int,
+        default=64 * 1024,
+        help="Copy pass read block size in bytes (default: 65536 / 64 KiB)",
+    )
+    img_parser.add_argument(
+        "--retries",
+        type=int,
+        default=0,
+        help="Max retries for scraping unreadable sectors (default: 0)",
+    )
+    img_parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Delay in seconds between scrape retries (default: 0.0)",
+    )
+    img_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume an interrupted imaging session from its mapfile",
+    )
+    img_parser.add_argument(
+        "--no-trim",
+        action="store_true",
+        help="Skip trim pass (do not edge-trim failed blocks)",
+    )
+    img_parser.add_argument(
+        "--no-scrape",
+        action="store_true",
+        help="Skip scrape pass (do not retry untried sectors)",
+    )
+    img_parser.add_argument(
+        "--no-hash",
+        action="store_true",
+        help="Skip SHA-256 computation of destination image",
+    )
+    img_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output acquisition results as formatted JSON",
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "scan":
@@ -475,6 +604,8 @@ def main(argv: list[str] | None = None) -> int:
         return _handle_recover(args)
     if args.command == "partitions":
         return _handle_partitions(args)
+    if args.command == "image":
+        return _handle_image(args)
 
     parser.print_help()
     return 0

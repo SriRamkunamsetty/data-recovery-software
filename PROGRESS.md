@@ -15,8 +15,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M5a: FAT12/16/32 metadata recovery** | **Completed** | `pytest` (124/124), `ruff`, `mypy` strict passing | FAT12/16/32 BPB, backup boot sector, LFN reassembly, contiguous chain check, `recoverx scan` metadata-first |
 | **M5b: exFAT metadata recovery** | **Completed** | `pytest` (142/142), `ruff`, `mypy` strict passing | exFAT VBR, backup VBR, entry-set checksum, NoFatChain, allocation bitmap, deleted entry recovery |
 | **M6: Partition analysis & lost volumes** | **Completed** | `pytest` (174/174), `ruff`, `mypy` strict passing | MBR, GPT header/array CRC32 checks, backup GPT fallback, FAT/exFAT/NTFS lost volume sweep, in-memory subdevice |
-| **M7: Disk imaging** | Pending | - | Next milestone |
-| **M8: Application services & SQLite** | Pending | - | - |
+| **M7: Disk imaging** | **Completed** | `pytest` (188/188), `ruff`, `mypy` strict passing | RangeStatusMap, copy/trim/scrape multi-pass imaging, ddrescue mapfile export, resume identity check, `recoverx image` CLI |
+| **M8: Application services & SQLite** | Pending | - | Next milestone |
 | **M9: Desktop UI (PySide6)** | Pending | - | - |
 | **M10: Windows device access** | Pending | - | - |
 | **M11: Extra formats & previews** | Pending | - | - |
@@ -337,6 +337,57 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M6): Raw disk imaging (M7), persistent SQLite scan database (M8), desktop GUI (M9), NTFS MFT parsing (M12).
 * **Blockers:**
   * None. Ready for Milestone M7.
+
+---
+
+### Milestone M7: Disk imaging
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Domain & Persistence Models for Disk Acquisition (`src/recoverx/domain/imaging.py`):
+    * `SectorStatus` enum (`NON_TRIED`, `NON_TRIMMED`, `NON_SCRAPED`, `BAD`, `FINISHED`).
+    * `BlockRange` dataclass representing contiguous sector ranges with specific status.
+    * `ImagingConfig` dataclass with strictly validated parameters: block size, exponential skip parameters, retry counts, scraping delays, and flags.
+    * `ImagingProgress` and `ImagingResult` tracking real-time status, rates, byte counts, elapsed times, and cryptographic hashes.
+  * Range Status Map & Mapfile Export (`src/recoverx/infrastructure/storage/range_map.py`):
+    * `RangeStatusMap` tracks every sector across large media efficiently using disjoint sorted intervals.
+    * Sub-range splitting and contiguous status-aware range coalescing.
+    * Atomic mapfile persistence (`save_file` via `.tmp` rename / `load_file`).
+    * `export_bad_sectors_json`: outputs machine-readable JSON list of bad sector ranges with byte offsets and lengths.
+    * `export_ddrescue_mapfile`: generates standard GNU ddrescue v1 compatible mapfile format with header comments, status markers (`?`, `*`, `/`, `-`, `+`), and standard pos/size fields for seamless interoperability with third-party forensic tools.
+  * Multi-Pass Forensic Disk Imaging Service (`src/recoverx/services/disk_imaging_service.py`):
+    * Implements three sequential passes modeled after GNU ddrescue:
+      * **Copy Pass:** Large block reads (default 64 KiB) advancing forward. Upon encountering I/O faults, dynamically skips ahead with exponential backoff (from 128 to 2048 sectors) and marks skipped regions `NON_TRIMMED`.
+      * **Trim Pass:** Scans `NON_TRIMMED` boundaries from left and right edges with sector precision, trimming healthy data and marking bad interiors `NON_SCRAPED`.
+      * **Scrape Pass:** Performs isolated single-sector reads on `NON_SCRAPED` sectors with user-configurable retries and delays.
+    * Destination safety verification (`DestinationOnSourceError` if output is on source disk).
+    * Pre-allocated sparse/raw image file creation.
+    * Factual zero-fill on bad sectors with explicit recording in range map.
+    * Strict factual completion reporting: `is_complete=False` if any bad sector exists (CLAUDE.md Rule 7).
+    * Resumable imaging with strict source device identity verification (`ResumeIdentityMismatchError` if device size, sector size, or sector 0 hash differs).
+    * SHA-256 integrity hashing of acquired image stream.
+  * CLI Integration (`src/recoverx/cli.py`):
+    * Added `recoverx image SOURCE DESTINATION [--block-size] [--retries] [--delay] [--resume] [--no-trim] [--no-scrape] [--no-hash] [--json]` command.
+    * Displays structured tabular progress and acquisition summary or JSON output.
+  * Comprehensive Testing:
+    * `tests/unit/test_range_map.py`: Interval splitting, coalescing, JSON serialization round-trip, ddrescue format export.
+    * `tests/unit/test_disk_imaging_service.py`: Healthy disk acquisition, fault-injected bad sector precision, incomplete flag verification, cancellation and resume identity checks, destination collision prevention.
+    * `tests/unit/test_cli_image.py`: Command-line interface testing with JSON and table formatting.
+    * `tests/property/test_imaging_hypothesis.py`: Hypothesis property fuzzing verifying range map partitioning and status invariants across random interval updates.
+  * Documentation:
+    * Added Section 5 to `docs/CAPABILITIES.md` recording Disk Imaging capabilities as **Supported**.
+    * Added ADR 012 to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (115 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 108 source files in strict mode).
+  * `pytest`: Passed (188 passed, 2 skipped in 9.70s).
+* **Scope Boundaries:**
+  * Completed: RangeStatusMap, copy/trim/scrape passes, ddrescue mapfile export, resume identity validation, bad-sector zero fill, SHA-256 calculation, CLI image command, comprehensive unit and property tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M7): Persistent SQLite scan session database (M8), desktop GUI (M9), elevated helper process (M10).
+* **Blockers:**
+  * None. Ready for Milestone M8.
+
 
 
 

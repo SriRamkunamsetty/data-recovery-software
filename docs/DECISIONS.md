@@ -173,5 +173,24 @@ This document tracks all key technical, architectural, tooling, and dependency d
   6. Add CLI command `recoverx partitions IMAGE [--json] [--scan-lost]` and integrate partition discovery into `recoverx scan` and `recoverx recover`.
 * **Rationale:** Satisfies CLAUDE.md Rule 1 (source is strictly read-only by construction), Rule 7 (factual reporting), and Milestone M6 acceptance criteria.
 
+---
+
+## ADR 012: Multi-Pass Disk Imaging, Bad-Sector Map, and Resume Identity Check
+
+* **Status:** Accepted
+* **Context:** Removable storage devices and failing block devices often suffer from I/O errors and physical degradation. Reading linearly with naive 1-sector retries can take hours or destroy failing flash media. A professional forensic acquisition engine requires multi-pass acquisition (copy, trim, scrape) modeled after GNU ddrescue, non-destructive read timeouts, atomic mapfile checkpointing, ddrescue mapfile compatibility, and safety checks against resuming an image against a different device. Furthermore, under CLAUDE.md Rule 7, if any sector is unreadable, RecoverX must never report the acquisition as complete (`is_complete=False`), and placeholders must be distinguishable from real data zeros via the map.
+* **Decision:**
+  1. Implement `RangeStatusMap` tracking every sector in one of five states (`NON_TRIED`, `NON_TRIMMED`, `NON_SCRAPED`, `BAD`, `FINISHED`). Support sub-range interval splitting, contiguous range coalescing (conditioned on matching status), atomic JSON serialization, and export to GNU ddrescue v1 format and machine-readable bad sectors JSON.
+  2. Implement `DiskImagingService` executing three sequential passes:
+     - **Copy pass:** Large aligned block reads (default 64 KiB) advancing sequentially. Upon encountering an unreadable block, skip ahead with an exponentially increasing skip size (from 128 sectors up to 2048 sectors) and mark the unread interval `NON_TRIMMED`.
+     - **Trim pass:** For every `NON_TRIMMED` range, probe sector-by-sector from the left edge until an error occurs, probe sector-by-sector backwards from the right edge until an error occurs, and mark the remaining damaged interior as `NON_SCRAPED`.
+     - **Scrape pass:** For every `NON_SCRAPED` sector, perform isolated single-sector reads with configurable retries (default 1) and optional delay. If the sector cannot be read, zero-fill the image sector, mark the sector `BAD`, and record its byte offset and length.
+  3. Support atomic resumption (`resume=True`). Before resuming an acquisition, read the map's device identity metadata (`capacity_bytes`, `sector_size`, `device_id`, `sector_zero_hash`) and verify that it matches the current source device (`ResumeIdentityMismatchError` on mismatch).
+  4. Ensure factual completion: set `is_complete = range_map.is_all_finished and range_map.bad_sectors_count == 0`. If any bad sectors exist, `is_complete` is strictly `False`.
+  5. Enforce destination safety: verify that the destination image file does not reside on the source device or volume (`DestinationOnSourceError`).
+  6. Add CLI command `recoverx image SOURCE DESTINATION [--block-size] [--retries] [--delay] [--resume] [--no-trim] [--no-scrape] [--no-hash] [--json]`.
+* **Rationale:** Satisfies CLAUDE.md Rules 1, 2, 7, and Milestone M7 acceptance criteria.
+
+
 
 

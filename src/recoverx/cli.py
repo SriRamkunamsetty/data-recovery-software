@@ -12,6 +12,8 @@ from recoverx.config import CollisionPolicy
 from recoverx.domain.candidate import RecoveryCandidate
 from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.scan import ScanProgress
+from recoverx.filesystems.base import FileSystemParser
+from recoverx.filesystems.exfat.parser import ExFatFileSystem
 from recoverx.filesystems.fat.parser import FatFileSystem
 from recoverx.infrastructure.storage.image import DiskImageReader
 from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
@@ -55,16 +57,24 @@ def _handle_scan(args: argparse.Namespace) -> int:
     metadata_offsets: set[int] = set()
 
     with reader:
-        # Step 1: Filesystem Metadata Probe (FAT12/16/32)
+        # Step 1: Filesystem Metadata Probe (FAT12/16/32, then exFAT)
+        fs_parser: FileSystemParser | None = None
         fat_fs = FatFileSystem()
+        exfat_fs = ExFatFileSystem()
+
         if fat_fs.detect(reader):
-            info = fat_fs.get_fs_info(reader)
+            fs_parser = fat_fs
+        elif exfat_fs.detect(reader):
+            fs_parser = exfat_fs
+
+        if fs_parser is not None:
+            info = fs_parser.get_fs_info(reader)
             if info is not None and not args.json:
                 sys.stderr.write(
                     f"Detected filesystem: {info.fs_type.value} "
                     f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
                 )
-            meta_cands = fat_fs.recover_candidates(
+            meta_cands = fs_parser.recover_candidates(
                 reader, base_offset=0, include_active=getattr(args, "include_active", False)
             )
             candidates.extend(meta_cands)
@@ -162,15 +172,23 @@ def _handle_recover(args: argparse.Namespace) -> int:
             candidates: list[RecoveryCandidate] = []
             metadata_offsets: set[int] = set()
 
+            fs_parser: FileSystemParser | None = None
             fat_fs = FatFileSystem()
+            exfat_fs = ExFatFileSystem()
+
             if fat_fs.detect(reader):
-                info = fat_fs.get_fs_info(reader)
+                fs_parser = fat_fs
+            elif exfat_fs.detect(reader):
+                fs_parser = exfat_fs
+
+            if fs_parser is not None:
+                info = fs_parser.get_fs_info(reader)
                 if info is not None and not args.json:
                     sys.stderr.write(
                         f"Detected filesystem: {info.fs_type.value} "
                         f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
                     )
-                meta_cands = fat_fs.recover_candidates(
+                meta_cands = fs_parser.recover_candidates(
                     reader, base_offset=0, include_active=getattr(args, "include_active", False)
                 )
                 candidates.extend(meta_cands)

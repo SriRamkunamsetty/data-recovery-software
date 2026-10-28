@@ -144,3 +144,18 @@ This document tracks all key technical, architectural, tooling, and dependency d
   6. Enforce depth limits (64) and cycle detection via visited cluster sets to prevent infinite loops on corrupted directories.
 * **Rationale:** Satisfies CLAUDE.md Rules 1, 4, 7 and Milestone M5a acceptance criteria.
 
+---
+
+## ADR 010: exFAT Metadata Recovery, Entry-Set Checksum, and Allocation Bitmap Verification
+
+* **Status:** Accepted
+* **Context:** exFAT structures directories as sets of 32-byte records (File, Stream Extension, and 1+ File Name entries) protected by a 16-bit set checksum. Stream Extension entries feature a `NoFatChain` flag denoting contiguous cluster allocation. The Allocation Bitmap tracks cluster usage across the cluster heap. The Main Boot Region spans sectors 0 to 11 (with sector 11 storing a 32-bit checksum of sectors 0 to 10), mirrored by a Backup Boot Region in sectors 12 to 23.
+* **Decision:**
+  1. Validate Volume Boot Record parameters from sector 0 and verify the 32-bit VBR boot checksum against sector 11. If primary boot sectors are damaged, automatically fall back to the Backup Boot Region (sectors 12 to 23).
+  2. Parse file entry sets (primary File entry, Stream Extension, and concatenated File Name entries).
+  3. Validate the 16-bit `SetChecksum` field across the entry set (restoring the active `0x80` bit for deleted entries `0x05`, `0x40`, `0x41`). If checksum fails, report the entry as `CandidateStatus.CORRUPTED` (damaged metadata) rather than attempting unsafe recovery.
+  4. For intact deleted entries with `NoFatChain == 1`, check the Allocation Bitmap for all clusters in `[FirstCluster, FirstCluster + clusters_needed)`. If any cluster is allocated (bit = 1), report as `CandidateStatus.OVERWRITTEN`. If all clusters are unallocated (bit = 0), validate payload with format validators and set `CandidateStatus.PREVIEW_VALIDATED`.
+  5. Integrate exFAT discovery into `recoverx scan` and `recoverx recover` with metadata-first priority.
+* **Rationale:** Satisfies CLAUDE.md Rules 1, 4, 7 and Milestone M5b acceptance criteria.
+
+

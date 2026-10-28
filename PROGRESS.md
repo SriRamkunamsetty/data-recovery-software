@@ -13,8 +13,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M3: Carving engine & first formats** | **Completed** | `pytest` (76/76), `ruff`, `mypy` strict passing | `CarvingScanner`, JPEG, PNG, PDF, ZIP/OOXML, `recoverx scan` CLI |
 | **M4: Destination safety & recovery** | **Completed** | `pytest` (99/99), `ruff`, `mypy` strict passing | `VolumeIdentityResolver`, atomic writer, collision resolver, `recoverx recover` CLI |
 | **M5a: FAT12/16/32 metadata recovery** | **Completed** | `pytest` (124/124), `ruff`, `mypy` strict passing | FAT12/16/32 BPB, backup boot sector, LFN reassembly, contiguous chain check, `recoverx scan` metadata-first |
-| **M5b: exFAT metadata recovery** | Pending | - | Next milestone |
-| **M6: Partition analysis & lost volumes** | Pending | - | - |
+| **M5b: exFAT metadata recovery** | **Completed** | `pytest` (142/142), `ruff`, `mypy` strict passing | exFAT VBR, backup VBR, entry-set checksum, NoFatChain, allocation bitmap, deleted entry recovery |
+| **M6: Partition analysis & lost volumes** | Pending | - | Next milestone |
 | **M7: Disk imaging** | Pending | - | - |
 | **M8: Application services & SQLite** | Pending | - | - |
 | **M9: Desktop UI (PySide6)** | Pending | - | - |
@@ -230,5 +230,57 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M5a): exFAT metadata recovery (M5b), partition table analysis (M6), NTFS (M12).
 * **Blockers:**
   * None. Ready for Milestone M5b.
+
+---
+
+### Milestone M5b: exFAT metadata recovery
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * `ExFatVbr` in `src/recoverx/filesystems/exfat/vbr.py`:
+    * Volume Boot Record parser extracting geometry, power-of-two sector/cluster shifts, partition offset, volume length, FAT offset, cluster heap offset, and root directory cluster.
+    * 32-bit VBR boot checksum calculation over sectors 0 to 10 (bytes 0 to `11 * bytes_per_sector - 1`), explicitly skipping `VolumeFlags` (bytes 106-107) and `PercentInUse` (byte 112) of Sector 0.
+    * Automatic fallback to Backup Boot Region (sectors 12 to 23) when primary VBR has corrupted signatures or failed boot checksum.
+  * `ExFatFileEntrySet` and entry parsers in `src/recoverx/filesystems/exfat/entry.py`:
+    * File Directory Entry (`0x85` active, `0x05` deleted), Stream Extension Entry (`0xC0` active, `0x40` deleted), and File Name Entries (`0xC1` active, `0x41` deleted).
+    * Unicode filename reassembly up to 255 UTF-16LE characters across secondary name entries.
+    * 16-bit Entry-Set Checksum calculation (`exfat_entry_set_checksum`) with 1-bit rotate and add across all entries in the set (skipping the checksum field itself).
+    * Deleted entry-set checksum verification: restores bit 7 on type bytes (`|= 0x80`) before calculating check, ensuring accurate detection of metadata corruption on deleted files.
+    * `NoFatChain` flag handling (`GeneralFlags & 0x02`), identifying contiguously allocated files that bypass the FAT table.
+    * Timestamps parsing (created, modified, accessed) with 10ms increments and UTC timezone offsets.
+  * `ExFatAllocationBitmap` in `src/recoverx/filesystems/exfat/bitmap.py`:
+    * Reads cluster allocation bits from the allocation bitmap cluster chain.
+    * Contiguous cluster verification (`check_contiguous_chain`) verifying that deleted files' clusters remain unallocated (bit = 0).
+  * `ExFatDirectoryWalker` in `src/recoverx/filesystems/exfat/directory.py`:
+    * Safe traversal of root directory and subdirectories.
+    * Automatic discovery and extraction of special root entries: Allocation Bitmap (`0x81`), Up-case Table (`0x82`), and Volume Label (`0x83`).
+    * Cycle detection via visited cluster sets and entry/depth limits preventing infinite loops.
+  * `ExFatFileSystem` in `src/recoverx/filesystems/exfat/parser.py`:
+    * Implementation of `FileSystemParser` ABC for exFAT.
+    * Candidate generation with factual statuses:
+      * Checksum mismatch on entry set -> `CandidateStatus.CORRUPTED`.
+      * Reallocated clusters detected in Allocation Bitmap -> `CandidateStatus.OVERWRITTEN`.
+      * Intact unallocated cluster run validated with format validator -> `CandidateStatus.PREVIEW_VALIDATED`.
+      * Intact unallocated cluster run without format validator -> `CandidateStatus.METADATA_RECOVERED`.
+  * Fixtures and Testing:
+    * `SyntheticExFatBuilder` in `tests/fixtures/exfat_builder.py`: Bit-perfect exFAT image builder with primary and backup VBRs, valid VBR checksums, allocation bitmaps, active, deleted, and overwritten files, and `NoFatChain` flags.
+    * Unit tests: `test_exfat_vbr.py`, `test_exfat_entry.py`, `test_exfat_bitmap.py`, `test_exfat_recovery.py`.
+    * Property testing: `test_exfat_hypothesis.py` fuzzing VBR and entry sets.
+    * Integration testing: `test_mkfs_exfat.py` for validation against images formatted by official `mkfs.exfat`.
+  * CLI Integration:
+    * `recoverx scan` and `recoverx recover` automatically detect and parse exFAT volumes alongside FAT12/16/32, carving engine, and metadata-first deduplication.
+  * Updated `docs/CAPABILITIES.md` recording exFAT as **Supported**.
+  * ADR 010 added to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (93 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 86 source files in strict mode).
+  * `pytest`: Passed (142 passed, 2 skipped in 6.87s).
+* **Scope Boundaries:**
+  * Completed: exFAT VBR parsing, backup boot region fallback, entry-set checksum, NoFatChain, allocation bitmap, deleted entry recovery, CLI integration, fixtures, tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M5b): Partition table analysis (M6), disk imaging (M7), NTFS (M12).
+* **Blockers:**
+  * None. Ready for Milestone M6.
+
 
 

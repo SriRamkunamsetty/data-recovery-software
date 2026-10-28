@@ -75,3 +75,22 @@ def test_cli_scan_fat_metadata(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert len(data) == 1
     assert data[0]["filename"] == "DeletedPhoto.png"
     assert data[0]["status"] == "Preview validated"
+
+
+def test_cli_scan_exfat_metadata(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Test `recoverx scan` detects exFAT filesystem and recovers deleted files via metadata."""
+    from tests.fixtures.exfat_builder import SyntheticExFatBuilder
+
+    png_data = create_minimal_png()
+    builder = SyntheticExFatBuilder(volume_label="CLI_EXFAT")
+    builder.add_file("ExFatDeleted.png", png_data, is_deleted=True, no_fat_chain=True)
+    manifest = builder.build(tmp_path / "exfat_cli.img")
+
+    exit_code = main(["scan", str(manifest.image_path), "--no-carve", "--json"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert len(data) == 1
+    assert data[0]["filename"] == "ExFatDeleted.png"
+    assert data[0]["status"] == "Preview validated"

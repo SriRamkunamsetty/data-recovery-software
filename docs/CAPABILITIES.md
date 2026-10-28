@@ -12,7 +12,7 @@ Labels strictly follow the tri-state rating: **Supported**, **Partial**, or **No
 | **FAT12** | **Supported** | BPB parsing, 12-bit FAT table unpacking, 8.3 short name and LFN reassembly, deleted `0xE5` entry recovery, contiguous unallocated cluster validation, format validator verification. | Recovery assumes contiguous cluster allocation; fails if clusters were reused/overwritten. Lost 1st char of short name without LFN is marked `_`. |
 | **FAT16** | **Supported** | BPB parsing, 16-bit FAT table unpacking, root directory sector traversal, LFN reassembly with short-name checksum validation, contiguous unallocated cluster validation. | Fails if clusters were reused or fragmented after deletion. |
 | **FAT32** | **Supported** | FAT32 BPB parsing, backup boot sector (sector 6) automatic fallback on primary corruption, cluster chain root directory traversal, subdirectory walking with cycle/depth limits, 28-bit cluster mask, LFN reassembly, contiguous unallocated cluster verification. | Fails if clusters were reused or fragmented after deletion. |
-| **exFAT** | Pending | Scheduled for Milestone M5b. | Not yet supported. |
+| **exFAT** | **Supported** | Volume Boot Record parsing, 32-bit VBR boot checksum, backup boot region (sectors 12-23) fallback, directory entry set parsing (File, Stream Extension, File Name), 16-bit entry-set checksum verification, Allocation Bitmap unallocated cluster check, NoFatChain contiguous run recovery. | Fragmented files deleted without FAT chains cannot be fully recovered; entry-set checksum failures are reported as damaged metadata. |
 | **NTFS** | Pending | Scheduled for Milestone M12. | Not yet supported. |
 
 ---

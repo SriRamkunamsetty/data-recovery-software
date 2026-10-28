@@ -28,6 +28,10 @@ class TestCandidateStatus:
             "Preview validated",
             "Partially readable",
             "Truncated",
+            "Corrupted",
+            "Unallocated",
+            "Allocated (active file)",
+            "Overwritten",
             "Unverified",
             "Recovery failed",
         }

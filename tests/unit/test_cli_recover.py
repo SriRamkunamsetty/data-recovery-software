@@ -64,3 +64,32 @@ def test_cli_recover_missing_image(tmp_path: Path, capsys: pytest.CaptureFixture
 
     captured = capsys.readouterr()
     assert "Error: Disk image not found" in captured.err
+
+
+def test_cli_recover_fat_metadata(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test `recoverx recover` recovers deleted files from a FAT32 filesystem."""
+    from recoverx.domain.enums import FileSystemType
+    from tests.fixtures.fat_builder import SyntheticFatBuilder
+
+    png_data = create_minimal_png()
+    builder = SyntheticFatBuilder(fs_type=FileSystemType.FAT32, volume_label="REC_FAT")
+    builder.add_file("Recovered_Image.png", png_data, is_deleted=True)
+    manifest = builder.build(tmp_path / "fat_source.img")
+
+    dest_dir = tmp_path / "fat_recovered_dir"
+    dest_dir.mkdir()
+
+    exit_code = main(["recover", str(manifest.image_path), str(dest_dir), "--json"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert len(data) == 1
+    assert data[0]["status"] == "success"
+    out_file = Path(data[0]["destination_path"])
+    assert out_file.exists()
+    assert out_file.name == "Recovered_Image.png"
+    assert out_file.read_bytes() == png_data

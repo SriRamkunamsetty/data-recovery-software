@@ -15,6 +15,10 @@ class CandidateStatus(StrEnum):
     PREVIEW_VALIDATED = "Preview validated"
     PARTIALLY_READABLE = "Partially readable"
     TRUNCATED = "Truncated"
+    CORRUPTED = "Corrupted"
+    UNALLOCATED = "Unallocated"
+    ALLOCATED = "Allocated (active file)"
+    OVERWRITTEN = "Overwritten"
     UNVERIFIED = "Unverified"
     RECOVERY_FAILED = "Recovery failed"
 

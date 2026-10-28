@@ -12,8 +12,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M2: Read-only storage & fixtures** | **Completed** | `pytest` (53/53), `ruff`, `mypy` strict passing | `ReadOnlyBlockDevice`, `DiskImageReader`, `FaultInjectionReader`, fixtures, Hypothesis |
 | **M3: Carving engine & first formats** | **Completed** | `pytest` (76/76), `ruff`, `mypy` strict passing | `CarvingScanner`, JPEG, PNG, PDF, ZIP/OOXML, `recoverx scan` CLI |
 | **M4: Destination safety & recovery** | **Completed** | `pytest` (99/99), `ruff`, `mypy` strict passing | `VolumeIdentityResolver`, atomic writer, collision resolver, `recoverx recover` CLI |
-| **M5a: FAT12/16/32 metadata recovery** | Pending | - | Next milestone |
-| **M5b: exFAT metadata recovery** | Pending | - | - |
+| **M5a: FAT12/16/32 metadata recovery** | **Completed** | `pytest` (124/124), `ruff`, `mypy` strict passing | FAT12/16/32 BPB, backup boot sector, LFN reassembly, contiguous chain check, `recoverx scan` metadata-first |
+| **M5b: exFAT metadata recovery** | Pending | - | Next milestone |
 | **M6: Partition analysis & lost volumes** | Pending | - | - |
 | **M7: Disk imaging** | Pending | - | - |
 | **M8: Application services & SQLite** | Pending | - | - |
@@ -178,4 +178,57 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M4): Real Windows volume resolution via Win32 ctypes (M10), GUI destination selection (M9), filesystem metadata recovery (M5a, M5b, M12).
 * **Blockers:**
   * None. Ready for Milestone M5a.
+
+---
+
+### Milestone M5a: FAT12/16/32 metadata recovery
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * `FatBpb` in `src/recoverx/filesystems/fat/bpb.py`:
+    * Robust BIOS Parameter Block parser and geometric validator for FAT12, FAT16, and FAT32.
+    * Microsoft cluster count FAT classification algorithm (`CountofClusters < 4085` -> FAT12, `< 65525` -> FAT16, `>= 65525` -> FAT32).
+    * Automatic backup boot sector (sector 6 on FAT32) fallback when primary sector 0 has corrupted signatures.
+  * `FatDirEntry` and `parse_lfn_entry` in `src/recoverx/filesystems/fat/entry.py`:
+    * 32-byte directory entry parser handling active entries and deleted (`0xE5`) files.
+    * Microsoft standard 8-bit checksum calculation (`fat_lfn_checksum`) with 1-bit rotate and add.
+    * Candidate original first-byte recovery (`verify_lfn_checksum_for_deleted_entry`) for deleted LFNs.
+    * Reassembly of reverse-ordered LFN sequences into full Unicode filenames.
+    * Safe packed MS-DOS datetime conversion to ISO 8601 strings.
+  * `FatTableReader` in `src/recoverx/filesystems/fat/fat_table.py`:
+    * Low-level FAT decoding for 12-bit (FAT12), 16-bit (FAT16), and 32-bit (FAT32, 28-bit mask) tables.
+    * Allocation state assessment (`is_cluster_free`, `is_end_of_chain`, `is_bad_cluster`).
+    * Contiguous cluster chain verification (`check_contiguous_chain`) verifying that deleted files' clusters remain unallocated.
+  * `FatDirectoryWalker` in `src/recoverx/filesystems/fat/directory.py`:
+    * Safe traversal of root directory and subdirectories.
+    * Cycle detection via visited cluster sets stopping circular cluster pointer corruptions.
+    * Depth limiting (64 levels) and entry limiting (100,000 entries) preventing infinite loops and memory exhaustion.
+  * `FatFileSystem` in `src/recoverx/filesystems/fat/parser.py`:
+    * Implementation of `FileSystemParser` ABC.
+    * Geometry detection and `FileSystemInfo` reporting.
+    * Candidate generation with factual statuses:
+      * Unallocated contiguous chains verified with format validators -> `CandidateStatus.PREVIEW_VALIDATED`.
+      * Overwritten clusters detected in FAT table -> reported as `CandidateStatus.OVERWRITTEN` (never recovered as corrupted data).
+      * Formats without dedicated validators -> `CandidateStatus.METADATA_RECOVERED`.
+  * Fixtures and Testing:
+    * `SyntheticFatBuilder` in `tests/fixtures/fat_builder.py`: Pure-Python generator for genuine FAT12, FAT16, and FAT32 disk images with active, deleted, LFN, and overwritten files.
+    * `test_fat_bpb.py`, `test_fat_entry.py`, `test_fat_table.py`, `test_fat_recovery.py`: Comprehensive unit tests.
+    * `test_fat_hypothesis.py`: Property-based fuzzing of BPB and directory parsing with arbitrary byte streams.
+    * `test_mkfs_fat.py`: Integration test with images formatted by official `mkfs.fat`.
+  * CLI Integration:
+    * `recoverx scan` and `recoverx recover` in `src/recoverx/cli.py` now run metadata-first discovery, deduplicating carved candidates against metadata entries, with `--no-carve` and `--include-active` options.
+  * Capability Table:
+    * Created `docs/CAPABILITIES.md` recording FAT12/16/32 as **Supported**.
+  * ADR 009 added to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (80 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 73 source files in strict mode).
+  * `pytest`: Passed (124 passed, 1 skipped in 5.88s).
+* **Scope Boundaries:**
+  * Completed: FAT12/16/32 metadata recovery, BPB parsing, backup boot sector fallback, LFN reassembly, contiguous cluster allocation checks, CLI metadata-first integration, tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M5a): exFAT metadata recovery (M5b), partition table analysis (M6), NTFS (M12).
+* **Blockers:**
+  * None. Ready for Milestone M5b.
+
 

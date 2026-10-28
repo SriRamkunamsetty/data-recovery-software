@@ -128,3 +128,19 @@ This document tracks all key technical, architectural, tooling, and dependency d
   4. Implement `RecoveryDestinationWriter` staging output via `.recoverx_tmp_*.part` files with `fsync()`, verifying computed SHA-256 against expected candidate hashes, unlinking staging files on any error (so no partial file remains), and atomically finalizing via `os.replace`.
   5. Provide CLI command `recoverx recover IMAGE DESTINATION [--json] [--collision-policy rename|skip|never_overwrite]`.
 * **Rationale:** Satisfies CLAUDE.md Rules 2, 3, and 4; prevents data loss; ensures atomic and forensically verified recovery outputs.
+
+---
+
+## ADR 009: FAT12/16/32 Filesystem Metadata Recovery, LFN Reassembly, and Allocation Verification
+
+* **Status:** Accepted
+* **Context:** Files deleted from FAT filesystems have their FAT allocation chains zeroed by operating systems, but their directory entries (including LFN parts) survive marked with `0xE5`. Recovering deleted files from FAT requires reading BIOS Parameter Blocks (BPB), traversing root and subdirectories safely with cycle detection, reassembling Long File Names with short-name checksum validation, evaluating contiguous cluster allocation against the FAT table, and verifying file integrity with structural format validators.
+* **Decision:**
+  1. Determine FAT type strictly by Microsoft cluster count specification (`CountofClusters < 4085` -> FAT12, `< 65525` -> FAT16, `>= 65525` -> FAT32), never trusting OEM strings or `BS_FilSysType`.
+  2. Implement automatic fallback to backup boot sector (sector 6 on FAT32) when primary sector 0 has corrupted signatures.
+  3. Reassemble LFN entries preceding deleted short entries by matching the 8-bit checksum against candidate original characters. Mark lost first character of short names as `_` when LFN is unavailable.
+  4. Assume contiguous cluster allocation starting at `DIR_FstClusLO/HI` for deleted files. Validate every cluster in the run against the FAT table. If any cluster is non-zero (allocated/bad), classify as `CandidateStatus.OVERWRITTEN` and do not claim recovery or compute false hashes.
+  5. Run structural format validators on unallocated cluster runs, conferring `CandidateStatus.PREVIEW_VALIDATED` only when the complete structure decodes cleanly.
+  6. Enforce depth limits (64) and cycle detection via visited cluster sets to prevent infinite loops on corrupted directories.
+* **Rationale:** Satisfies CLAUDE.md Rules 1, 4, 7 and Milestone M5a acceptance criteria.
+

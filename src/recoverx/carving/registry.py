@@ -46,6 +46,22 @@ class SignatureRegistry:
         """List of all registered signatures."""
         return list(self._signatures)
 
+    def get_validator_for_extension(self, extension: str) -> FormatValidator | None:
+        """Lookup a format validator by file extension (without dot)."""
+        ext = extension.lower().strip()
+        for sig in self._signatures:
+            if sig.validator.format_name.lower() == ext:
+                return sig.validator
+            # Handle aliases
+            if ext in ("jpg", "jpeg") and sig.validator.format_name.lower() == "jpeg":
+                return sig.validator
+            if ext in ("zip", "docx", "xlsx", "pptx") and sig.validator.format_name.lower() in (
+                "zip",
+                "ooxml",
+            ):
+                return sig.validator
+        return None
+
     @classmethod
     def default_registry(cls) -> "SignatureRegistry":
         """Construct the default registry with Milestone M3 first-set formats."""

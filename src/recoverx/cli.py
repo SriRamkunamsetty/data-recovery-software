@@ -12,6 +12,7 @@ from recoverx.config import CollisionPolicy
 from recoverx.domain.candidate import RecoveryCandidate
 from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.scan import ScanProgress
+from recoverx.filesystems.fat.parser import FatFileSystem
 from recoverx.infrastructure.storage.image import DiskImageReader
 from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
 from recoverx.services.recovery_service import RecoveryService
@@ -50,14 +51,37 @@ def _handle_scan(args: argparse.Namespace) -> int:
             )
             sys.stderr.flush()
 
-    scanner = CarvingScanner(
-        chunk_size_bytes=args.chunk_size,
-        overlap_bytes=args.overlap,
-        progress_callback=progress_reporter if not args.json else None,
-    )
+    candidates: list[RecoveryCandidate] = []
+    metadata_offsets: set[int] = set()
 
     with reader:
-        candidates = scanner.scan(reader)
+        # Step 1: Filesystem Metadata Probe (FAT12/16/32)
+        fat_fs = FatFileSystem()
+        if fat_fs.detect(reader):
+            info = fat_fs.get_fs_info(reader)
+            if info is not None and not args.json:
+                sys.stderr.write(
+                    f"Detected filesystem: {info.fs_type.value} "
+                    f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
+                )
+            meta_cands = fat_fs.recover_candidates(
+                reader, base_offset=0, include_active=getattr(args, "include_active", False)
+            )
+            candidates.extend(meta_cands)
+            for mc in meta_cands:
+                metadata_offsets.add(mc.source_offset)
+
+        # Step 2: Carving Phase (optional or default)
+        if not getattr(args, "no_carve", False):
+            scanner = CarvingScanner(
+                chunk_size_bytes=args.chunk_size,
+                overlap_bytes=args.overlap,
+                progress_callback=progress_reporter if not args.json else None,
+            )
+            carved = scanner.scan(reader)
+            for c in carved:
+                if c.source_offset not in metadata_offsets:
+                    candidates.append(c)
 
     if not args.json:
         sys.stderr.write("\nScan complete.\n")
@@ -118,9 +142,7 @@ def _handle_recover(args: argparse.Namespace) -> int:
     elif args.collision_policy == "never_overwrite":
         policy = CollisionPolicy.OVERWRITE_NEVER
 
-    # Step 1: Scan image for candidates
-    scanner = CarvingScanner(chunk_size_bytes=args.chunk_size)
-
+    # Step 1: Scan image for candidates (metadata first, carving optional)
     # Step 2: Initialize recovery service with resolver
     resolver = FakeVolumeIdentityResolver()
     service = RecoveryService(resolver=resolver)
@@ -137,7 +159,31 @@ def _handle_recover(args: argparse.Namespace) -> int:
 
     try:
         with reader:
-            candidates = scanner.scan(reader)
+            candidates: list[RecoveryCandidate] = []
+            metadata_offsets: set[int] = set()
+
+            fat_fs = FatFileSystem()
+            if fat_fs.detect(reader):
+                info = fat_fs.get_fs_info(reader)
+                if info is not None and not args.json:
+                    sys.stderr.write(
+                        f"Detected filesystem: {info.fs_type.value} "
+                        f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
+                    )
+                meta_cands = fat_fs.recover_candidates(
+                    reader, base_offset=0, include_active=getattr(args, "include_active", False)
+                )
+                candidates.extend(meta_cands)
+                for mc in meta_cands:
+                    metadata_offsets.add(mc.source_offset)
+
+            if not getattr(args, "no_carve", False):
+                scanner = CarvingScanner(chunk_size_bytes=args.chunk_size)
+                carved = scanner.scan(reader)
+                for c in carved:
+                    if c.source_offset not in metadata_offsets:
+                        candidates.append(c)
+
             if not candidates:
                 if args.json:
                     sys.stdout.write("[]\n")
@@ -221,6 +267,16 @@ def main(argv: list[str] | None = None) -> int:
         default=64 * 1024,
         help="Scanner chunk overlap in bytes (default: 65536 / 64 KiB)",
     )
+    scan_parser.add_argument(
+        "--no-carve",
+        action="store_true",
+        help="Skip raw carving phase (metadata only)",
+    )
+    scan_parser.add_argument(
+        "--include-active",
+        action="store_true",
+        help="Include active non-deleted files in scan",
+    )
 
     # `recover` command
     recover_parser = subparsers.add_parser(
@@ -244,6 +300,16 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1024 * 1024,
         help="Scanner chunk size in bytes (default: 1048576 / 1 MiB)",
+    )
+    recover_parser.add_argument(
+        "--no-carve",
+        action="store_true",
+        help="Skip raw carving phase (metadata only)",
+    )
+    recover_parser.add_argument(
+        "--include-active",
+        action="store_true",
+        help="Include active non-deleted files in recovery",
     )
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])

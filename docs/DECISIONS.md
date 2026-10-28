@@ -114,3 +114,17 @@ This document tracks all key technical, architectural, tooling, and dependency d
   4. Only files where the complete structure decodes cleanly receive `CandidateStatus.PREVIEW_VALIDATED`. Truncated or corrupt streams receive `CandidateStatus.TRUNCATED` or `CandidateStatus.SIGNATURE_MATCHED`.
   5. Provide CLI `recoverx scan IMAGE [--json]` for headless command-line execution and automated integration.
 * **Rationale:** Maximizes forensic accuracy, prevents false recovery claims, handles large storage media in bounded memory, and ensures embedded thumbnails and corrupt chunks are correctly handled.
+
+---
+
+## ADR 008: Destination Safety, Path Sanitization, and Atomic File Writing
+
+* **Status:** Accepted
+* **Context:** Recovering deleted data requires non-negotiable guarantees that writing output will never contaminate, overwrite, or corrupt the source storage device. Furthermore, recovered filenames originating from corrupted media or foreign filesystems may contain path traversal sequences (`../../`), Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), Alternate Data Streams (`:`), or invalid trailing characters. Interruptions (disk-full, permission errors, sudden disconnect) must never leave partial files that look complete.
+* **Decision:**
+  1. Implement `VolumeIdentityResolver` interface and `FakeVolumeIdentityResolver` to establish physical disk and volume boundaries. Any destination or work directory sharing the same volume or physical disk as the source device is unconditionally refused (`DestinationOnSourceError`). Ambiguous identities are similarly refused (`AmbiguousSeparationError`).
+  2. Implement `sanitize_filename` and `sanitize_relative_path` neutralizing path traversal sequences, rewriting reserved Windows names (e.g., `CON.txt` -> `_CON.txt`), stripping trailing dots/spaces, and removing illegal characters and `:` alternate streams.
+  3. Enforce a strict no-overwrite policy: `resolve_collision` handles case-insensitive name collisions (e.g., `file (1).ext`) without clobbering existing user files.
+  4. Implement `RecoveryDestinationWriter` staging output via `.recoverx_tmp_*.part` files with `fsync()`, verifying computed SHA-256 against expected candidate hashes, unlinking staging files on any error (so no partial file remains), and atomically finalizing via `os.replace`.
+  5. Provide CLI command `recoverx recover IMAGE DESTINATION [--json] [--collision-policy rename|skip|never_overwrite]`.
+* **Rationale:** Satisfies CLAUDE.md Rules 2, 3, and 4; prevents data loss; ensures atomic and forensically verified recovery outputs.

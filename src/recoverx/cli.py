@@ -8,8 +8,13 @@ from typing import Any
 
 from recoverx._version import __version__
 from recoverx.carving.scanner import CarvingScanner
+from recoverx.config import CollisionPolicy
+from recoverx.domain.candidate import RecoveryCandidate
+from recoverx.domain.recovery import RecoveryResult
 from recoverx.domain.scan import ScanProgress
 from recoverx.infrastructure.storage.image import DiskImageReader
+from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
+from recoverx.services.recovery_service import RecoveryService
 
 
 def _format_size(size_bytes: int) -> str:
@@ -91,6 +96,97 @@ def _handle_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_recover(args: argparse.Namespace) -> int:
+    """Handle `recoverx recover` command."""
+    image_path = Path(args.image).resolve()
+    if not image_path.exists():
+        sys.stderr.write(f"Error: Disk image not found: {image_path}\n")
+        return 1
+
+    dest_dir = Path(args.destination).resolve()
+
+    try:
+        reader = DiskImageReader(image_path)
+    except Exception as e:
+        sys.stderr.write(f"Error opening disk image: {e}\n")
+        return 1
+
+    # Map collision policy
+    policy = CollisionPolicy.RENAME
+    if args.collision_policy == "skip":
+        policy = CollisionPolicy.SKIP
+    elif args.collision_policy == "never_overwrite":
+        policy = CollisionPolicy.OVERWRITE_NEVER
+
+    # Step 1: Scan image for candidates
+    scanner = CarvingScanner(chunk_size_bytes=args.chunk_size)
+
+    # Step 2: Initialize recovery service with resolver
+    resolver = FakeVolumeIdentityResolver()
+    service = RecoveryService(resolver=resolver)
+
+    def progress_callback(
+        curr: int, total: int, cand: RecoveryCandidate, res: RecoveryResult
+    ) -> None:
+        if not args.json:
+            sys.stderr.write(
+                f"\rRecovering [{curr}/{total}]: {cand.filename} -> {res.status} "
+                f"({_format_size(res.bytes_written)})"
+            )
+            sys.stderr.flush()
+
+    try:
+        with reader:
+            candidates = scanner.scan(reader)
+            if not candidates:
+                if args.json:
+                    sys.stdout.write("[]\n")
+                else:
+                    sys.stdout.write("No recoverable candidates found in image.\n")
+                return 0
+
+            results = service.recover_candidates(
+                device=reader,
+                destination_directory=dest_dir,
+                candidates=candidates,
+                collision_policy=policy,
+                progress_callback=progress_callback if not args.json else None,
+            )
+    except Exception as e:
+        sys.stderr.write(f"\nError during recovery: {e}\n")
+        return 1
+
+    if not args.json:
+        sys.stderr.write("\nRecovery operation complete.\n")
+
+    if args.json:
+        res_data: list[dict[str, Any]] = []
+        for r in results:
+            res_data.append(
+                {
+                    "candidate_id": r.candidate_id,
+                    "destination_path": r.destination_path,
+                    "bytes_written": r.bytes_written,
+                    "status": r.status,
+                    "hash_verified": r.hash_verified,
+                    "error_message": r.error_message,
+                }
+            )
+        sys.stdout.write(json.dumps(res_data, indent=2) + "\n")
+    else:
+        sys.stdout.write(f"\nRecovered {len(results)} file(s) to '{dest_dir}':\n")
+        sys.stdout.write("-" * 80 + "\n")
+        sys.stdout.write(f"{'Status':<18} {'Size':<12} {'Destination Path'}\n")
+        sys.stdout.write("-" * 80 + "\n")
+        for r in results:
+            sys.stdout.write(
+                f"{r.status:<18} {_format_size(r.bytes_written):<12} {r.destination_path}\n"
+            )
+        sys.stdout.write("-" * 80 + "\n")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -126,10 +222,36 @@ def main(argv: list[str] | None = None) -> int:
         help="Scanner chunk overlap in bytes (default: 65536 / 64 KiB)",
     )
 
+    # `recover` command
+    recover_parser = subparsers.add_parser(
+        "recover", help="Recover files from disk image to a safe destination"
+    )
+    recover_parser.add_argument("image", help="Path to raw disk image file")
+    recover_parser.add_argument("destination", help="Destination directory to save recovered files")
+    recover_parser.add_argument(
+        "--collision-policy",
+        choices=["rename", "skip", "never_overwrite"],
+        default="rename",
+        help="Action when destination file already exists (default: rename)",
+    )
+    recover_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output recovery results as formatted JSON",
+    )
+    recover_parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=1024 * 1024,
+        help="Scanner chunk size in bytes (default: 1048576 / 1 MiB)",
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "scan":
         return _handle_scan(args)
+    if args.command == "recover":
+        return _handle_recover(args)
 
     parser.print_help()
     return 0

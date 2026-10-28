@@ -11,8 +11,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M1: Project foundation** | **Completed** | `pytest` (31/31), `ruff`, `mypy` strict passing | Core architecture, domain models, config, logging, CI |
 | **M2: Read-only storage & fixtures** | **Completed** | `pytest` (53/53), `ruff`, `mypy` strict passing | `ReadOnlyBlockDevice`, `DiskImageReader`, `FaultInjectionReader`, fixtures, Hypothesis |
 | **M3: Carving engine & first formats** | **Completed** | `pytest` (76/76), `ruff`, `mypy` strict passing | `CarvingScanner`, JPEG, PNG, PDF, ZIP/OOXML, `recoverx scan` CLI |
-| **M4: Destination safety & recovery** | Pending | - | Next milestone |
-| **M5a: FAT12/16/32 metadata recovery** | Pending | - | - |
+| **M4: Destination safety & recovery** | **Completed** | `pytest` (99/99), `ruff`, `mypy` strict passing | `VolumeIdentityResolver`, atomic writer, collision resolver, `recoverx recover` CLI |
+| **M5a: FAT12/16/32 metadata recovery** | Pending | - | Next milestone |
 | **M5b: exFAT metadata recovery** | Pending | - | - |
 | **M6: Partition analysis & lost volumes** | Pending | - | - |
 | **M7: Disk imaging** | Pending | - | - |
@@ -137,3 +137,45 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M3): Writing recovered files (M4), second-set formats (M11), filesystem metadata parsing (M5a, M5b, M12).
 * **Blockers:**
   * None. Ready for Milestone M4.
+
+---
+
+### Milestone M4: Destination safety and `recoverx recover` CLI
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Defined `VolumeIdentityResolver` interface in `src/recoverx/infrastructure/storage/resolver.py`:
+    * Concrete test double `FakeVolumeIdentityResolver` supporting programmatic mapping of block devices and filesystem paths to volume IDs and physical disk numbers.
+    * Enforces `DestinationOnSourceError` if source and destination (or work directory) share the same volume ID or the same physical disk number.
+    * Enforces `AmbiguousSeparationError` if volume or physical disk identity cannot be resolved with certainty (CLAUDE.md Rule 3).
+  * Built destination directory and path sanitizer in `src/recoverx/services/destination_validator.py`:
+    * Sanitizes all 22 reserved Windows device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`) regardless of extension or casing.
+    * Strips trailing dots and spaces, neutralizes Alternate Data Streams (`:`), and removes forbidden filesystem characters (`<`, `>`, `"`, `|`, `?`, `*`).
+    * Neutralizes directory traversal attacks (`../`, `..\`) ensuring recovered paths remain strictly relative and sandboxed.
+    * Implements case-insensitive duplicate collision resolution (`CollisionPolicy.RENAME`, `CollisionPolicy.SKIP`, `CollisionPolicy.NEVER_OVERWRITE`) preventing silent data loss.
+  * Implemented atomic `RecoveryDestinationWriter` in `src/recoverx/services/destination_writer.py`:
+    * Stages recovery output to temporary `.part` files (`.recoverx_tmp_*.part`) with strict `fsync()` flushing.
+    * Computes SHA-256 during streaming write and validates against expected candidate hash.
+    * Unlinks and purges staging file on any error (disk full, permission denied, source disconnect, hash mismatch) ensuring no partial file is left looking complete.
+    * Atomically replaces staging file with target path via `os.replace`.
+  * Implemented end-to-end `RecoveryService` in `src/recoverx/services/recovery_service.py`:
+    * Coordinates separation validation, safe filename resolution, atomic extraction, and creates comprehensive `RecoveryReport`.
+  * Command-Line Interface (`recoverx recover IMAGE DESTINATION`):
+    * Runs carve-then-recover pipeline in headless/scriptable workflows with `--json` or formatted terminal reporting.
+  * Testing Suite:
+    * `test_destination_safety.py`: Tests Windows reserved name rewrites, ADS stripping, traversal prevention, same-volume and same-physical-disk refusal.
+    * `test_collision_handling.py`: Tests case-insensitive collision numbering and collision policies.
+    * `test_destination_writer.py`: Tests atomic replacement, hash mismatch purge, disk-full simulation, disconnect simulation, and permission-denied simulation leaving no partial file.
+    * `test_recovery_service.py` & `test_cli_recover.py`: Tests end-to-end recovery workflows and CLI invocations.
+  * ADR 008 added to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (64 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 58 source files in strict mode).
+  * `pytest`: Passed (100 passed in 3.46s).
+* **Scope Boundaries:**
+  * Completed: Destination safety, path sanitization, atomic staging writer, collision resolution, recovery service, CLI recover command, tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M4): Real Windows volume resolution via Win32 ctypes (M10), GUI destination selection (M9), filesystem metadata recovery (M5a, M5b, M12).
+* **Blockers:**
+  * None. Ready for Milestone M5a.
+

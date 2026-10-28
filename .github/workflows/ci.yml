@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: Ruff Format Check
+        run: ruff format --check .
+
+      - name: Ruff Lint Check
+        run: ruff check .
+
+      - name: Mypy Strict Typecheck
+        run: mypy src tests
+
+  core-tests-linux:
+    name: Core Tests (Ubuntu / Linux)
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install system dependencies for Qt offscreen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libfontconfig1 libdbus-1-3
+
+      - name: Install project dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: Run pytest (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest
+
+  core-tests-windows:
+    name: Core Tests (Windows)
+    runs-on: windows-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install project dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: Run pytest (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest

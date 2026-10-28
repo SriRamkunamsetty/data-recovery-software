@@ -10,8 +10,8 @@ This document tracks milestone progress, verification results, and known issues 
 |---|---|---|---|
 | **M1: Project foundation** | **Completed** | `pytest` (31/31), `ruff`, `mypy` strict passing | Core architecture, domain models, config, logging, CI |
 | **M2: Read-only storage & fixtures** | **Completed** | `pytest` (53/53), `ruff`, `mypy` strict passing | `ReadOnlyBlockDevice`, `DiskImageReader`, `FaultInjectionReader`, fixtures, Hypothesis |
-| **M3: Carving engine & first formats** | Pending | - | Next milestone |
-| **M4: Destination safety & recovery** | Pending | - | - |
+| **M3: Carving engine & first formats** | **Completed** | `pytest` (76/76), `ruff`, `mypy` strict passing | `CarvingScanner`, JPEG, PNG, PDF, ZIP/OOXML, `recoverx scan` CLI |
+| **M4: Destination safety & recovery** | Pending | - | Next milestone |
 | **M5a: FAT12/16/32 metadata recovery** | Pending | - | - |
 | **M5b: exFAT metadata recovery** | Pending | - | - |
 | **M6: Partition analysis & lost volumes** | Pending | - | - |
@@ -98,3 +98,42 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M2): Filesystem parsing (M5a, M5b, M12), carving engine (M3), Windows-specific raw device access (M10).
 * **Blockers:**
   * None. Ready for Milestone M3.
+
+---
+
+### Milestone M3: Carving engine, first formats, `recoverx scan` CLI
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Structural format validators adhering to `FormatValidator` interface:
+    * `JpegValidator`: Walks markers (SOI, DQT, SOF, DHT, SOS, EOI), entropy-coded scan data, and parses APP1 EXIF segment lengths to skip inner embedded thumbnails and prevent duplicate candidate generation.
+    * `PngValidator`: Walks chunk streams from `IHDR` to `IEND`, verifying CRC-32 on every chunk payload.
+    * `PdfValidator`: Scans forward with sliding overlap for `startxref`, trailer dictionaries, and final `%%EOF`, accounting for incremental updates.
+    * `ZipValidator`: Scans backwards/forwards for EOCD, parses Central Directory headers, checks zip-bomb entry count ceilings, and classifies OOXML documents (`.docx`, `.xlsx`, `.pptx`) via `[Content_Types].xml`.
+  * Declarative `SignatureRegistry`:
+    * Configurable magic signatures, sector-alignment constraints, and default M3 format mappings.
+  * Streaming `CarvingScanner`:
+    * Bounded-memory streaming over `ReadOnlyBlockDevice` via sliding chunk window with configurable chunk size and overlap.
+    * Fast binary pattern searching using C-speed `bytes.find`.
+    * Candidate deduplication across chunk boundaries and container boundaries (skipping inner ZIP local entries and inner EXIF thumbnail ranges).
+    * `CancellationToken` support halting execution within a single chunk.
+    * Read-error continuation: automatically skips unreadable bad sectors, tracks bad sector count, and continues scanning without aborting.
+    * Atomic `ScanProgress` callbacks reporting bytes scanned, percentage, candidates found, and time estimates.
+  * Command-Line Interface (`recoverx scan IMAGE`):
+    * Supports `--json` machine-readable output and tabular terminal output.
+    * Allows custom `--chunk-size` and `--overlap` parameter configuration.
+  * Testing Suite:
+    * Unit tests for each validator on valid, truncated, and corrupt structures.
+    * Integration tests on multi-file images, cross-chunk boundary placements, and read-error continuation.
+    * Property-based fuzzing with Hypothesis over all 4 validators with random and corrupted byte streams ensuring no crashes or hangs.
+  * ADR 007 added to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (55 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 49 source files in strict mode).
+  * `pytest`: Passed (76 passed in 3.11s).
+* **Scope Boundaries:**
+  * Completed: Carving engine, first-set validators (JPEG, PNG, PDF, ZIP/OOXML), signature registry, CLI scan command, Hypothesis fuzz tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M3): Writing recovered files (M4), second-set formats (M11), filesystem metadata parsing (M5a, M5b, M12).
+* **Blockers:**
+  * None. Ready for Milestone M4.

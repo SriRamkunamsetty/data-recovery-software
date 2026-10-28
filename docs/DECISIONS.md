@@ -96,3 +96,21 @@ This document tracks all key technical, architectural, tooling, and dependency d
   3. Implement `FaultInjectionReader` as a decorator around any `ReadOnlyBlockDevice`, capable of simulating unreadable bad sector ranges (`DeviceReadError`), short reads, latency/delays, and unexpected disconnections (`DeviceDisconnectedError`).
   4. Implement `SyntheticImageBuilder` and `ImageHashSnapshot` to generate test disk images with known payloads and cryptographically prove that image bytes and hashes are 100% immutable across all read operations.
 * **Rationale:** Provides complete separation between storage I/O and recovery engines, enforces compile-time and runtime read-only safety, and provides deterministic testing of failing media scenarios.
+
+---
+
+## ADR 007: Streaming File Carving and Structural Validation Architecture
+
+* **Status:** Accepted
+* **Context:** When filesystems are quick-formatted or corrupted, file carving must locate files by binary signature and structure without relying on directory metadata. Carving must process arbitrary disk capacities with strictly bounded memory, operate across chunk boundaries without missing cross-boundary headers, deduplicate embedded objects (e.g., EXIF thumbnails inside JPEGs), continue gracefully across bad sectors, and enforce that no file is assigned `Preview validated` status unless its internal structure was fully walked and verified.
+* **Decision:**
+  1. Implement `CarvingScanner` with sliding window chunking (`chunk_size` + `overlap`). Scans use fast `bytes.find` across chunk buffers in memory with bounds checks.
+  2. Implement `CancellationToken` checked per chunk, ensuring prompt cancellation without blocking.
+  3. Implement declarative `SignatureRegistry` and per-format validators for first-set formats:
+     - `JpegValidator`: Walks markers (SOI, DQT, SOF, DHT, SOS, EOI), entropy scan, and parses APP1 EXIF segment lengths to skip inner embedded thumbnails and prevent false candidate duplication.
+     - `PngValidator`: Walks chunks from `IHDR` to `IEND`, verifying CRC-32 on every chunk.
+     - `PdfValidator`: Scans for startxref, xref/trailer, and final `%%EOF`, accounting for incremental updates.
+     - `ZipValidator`: Locates and parses EOCD, traverses Central Directory records, checks zip-bomb ceilings (ratio and entry counts), and classifies OOXML files (`.docx`, `.xlsx`, `.pptx`) via `[Content_Types].xml`.
+  4. Only files where the complete structure decodes cleanly receive `CandidateStatus.PREVIEW_VALIDATED`. Truncated or corrupt streams receive `CandidateStatus.TRUNCATED` or `CandidateStatus.SIGNATURE_MATCHED`.
+  5. Provide CLI `recoverx scan IMAGE [--json]` for headless command-line execution and automated integration.
+* **Rationale:** Maximizes forensic accuracy, prevents false recovery claims, handles large storage media in bounded memory, and ensures embedded thumbnails and corrupt chunks are correctly handled.

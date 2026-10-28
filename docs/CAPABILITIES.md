@@ -43,3 +43,15 @@ Labels strictly follow the tri-state rating: **Supported**, **Partial**, or **No
 | **Atomic File Writing** | **Supported** | Staged in `.recoverx_tmp_*.part` files with `fsync()`, SHA-256 verification, and immediate purge on error (no partial files). |
 | **Path Traversal & Reserved Names** | **Supported** | Neutralizes `../`, ADS (`:`), trailing dots/spaces, and rewrites all 22 Windows reserved device names (`CON`, `PRN`, etc.). |
 | **Windows Raw Disk Access** | Pending | Scheduled for Milestone M10 (elevated helper process and named pipe). |
+
+---
+
+## 4. Partition Analysis and Lost Volume Recovery
+
+| Feature | Status | Capabilities & Verified Scope | Honest Limitations |
+|---|---|---|---|
+| **MBR Partition Parsing** | **Supported** | Master Boot Record parsing, active bootable flag detection, CHS/LBA address decoding, protective MBR (`0xEE`) recognition, EBR extended partition chain traversal with cycle and depth limits. | Dynamic disks (LDM) and proprietary RAID metadata are reported as raw or unsupported. |
+| **GPT Partition Parsing** | **Supported** | Primary (LBA 1) and Backup (last LBA) GPT headers, header CRC32 and partition entry array CRC32 verification, UEFI GUID decoding, UTF-16LE partition names, automatic fallback to Backup GPT when primary is corrupted. | Damaged partition array with corrupt CRC is reported as corrupted GPT. |
+| **Lost Volume Discovery** | **Supported** | Deep boot-sector signature sweep for unpartitioned disks and wiped partition tables: FAT12/16/32, exFAT, and NTFS volume detection. | Requires intact filesystem boot sector or backup structure; completely wiped boot sectors without backup cannot determine geometry. |
+| **Backup Boot Structure Recovery** | **Supported** | Recovers volume offsets when primary boot sector is destroyed using FAT32 backup boot sector (sector 6), exFAT backup boot region (sectors 12-23), and NTFS backup boot sector (last sector of volume). | Relies on backup structures having survived; overwritten or truncated volumes cannot be reconstructed from missing backups. |
+| **In-Memory SubDevice Mapping** | **Supported** | `SubDeviceReader` maps partition offsets in memory without writing anything to the source device (Rule 1 of CLAUDE.md). Passes directly to metadata recovery and carving engines. | Does not modify on-disk partition tables. |

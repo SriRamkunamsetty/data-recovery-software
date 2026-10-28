@@ -158,4 +158,20 @@ This document tracks all key technical, architectural, tooling, and dependency d
   5. Integrate exFAT discovery into `recoverx scan` and `recoverx recover` with metadata-first priority.
 * **Rationale:** Satisfies CLAUDE.md Rules 1, 4, 7 and Milestone M5b acceptance criteria.
 
+---
+
+## ADR 011: Partition Table Recovery, GPT Backup CRC Fallback, and Read-Only SubDevice Mapping
+
+* **Status:** Accepted
+* **Context:** Physical storage media and disk images often feature partition tables (MBR or GPT) defining volume boundaries. Partition tables may be wiped, truncated, or damaged, or primary structures may be corrupted while backup structures survive (e.g., backup GPT header at the last LBA, FAT32 backup boot sector at sector 6, exFAT backup boot region at sectors 12-23, NTFS backup boot sector at the last volume sector). Under Rule 1 of CLAUDE.md, RecoverX must never repair, write to, or modify partition tables on disk; instead, discovered partitions and lost volumes must be represented as in-memory slices for metadata recovery and carving.
+* **Decision:**
+  1. Implement read-only `MbrParser` validating boot signature `0x55 0xAA`, 4 primary partition records, protective MBR (`0xEE`), and safely traversing EBR extended partition chains with cycle detection and depth bounds.
+  2. Implement `GptParser` validating primary GPT header at LBA 1 and backup GPT header at the last LBA. Validate header CRC32 (with CRC field zeroed) and partition entry array CRC32.
+  3. Explicitly assess and report `GptHeaderHealth` (`BOTH_VALID`, `PRIMARY_VALID_BACKUP_CORRUPT`, `BACKUP_VALID_PRIMARY_CORRUPT`, `BOTH_CORRUPT`, `NOT_FOUND`). When primary GPT is damaged but backup GPT is intact, automatically recover partition entries from the backup copy.
+  4. Implement `LostVolumeScanner` performing sector sweeps for lost volumes across FAT12, FAT16, FAT32, exFAT, and NTFS. Recognize backup boot structures when primary boot sectors are wiped/destroyed, reconstructing the original volume start offset without creating duplicate candidates.
+  5. Implement `SubDeviceReader(ReadOnlyBlockDevice)` representing an in-memory view of a partition slice at `base_offset` with `size_bytes`. The subdevice translates read requests strictly in memory and exposes zero write/modification methods.
+  6. Add CLI command `recoverx partitions IMAGE [--json] [--scan-lost]` and integrate partition discovery into `recoverx scan` and `recoverx recover`.
+* **Rationale:** Satisfies CLAUDE.md Rule 1 (source is strictly read-only by construction), Rule 7 (factual reporting), and Milestone M6 acceptance criteria.
+
+
 

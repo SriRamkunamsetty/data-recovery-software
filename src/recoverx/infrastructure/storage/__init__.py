@@ -20,6 +20,7 @@ from recoverx.infrastructure.storage.fixtures import (
     SyntheticImageManifest,
 )
 from recoverx.infrastructure.storage.image import DiskImageReader
+from recoverx.infrastructure.storage.subdevice import SubDeviceReader
 
 __all__ = [
     "ByteRange",
@@ -33,6 +34,7 @@ __all__ = [
     "ImageHashSnapshot",
     "ReadOnlyBlockDevice",
     "StorageError",
+    "SubDeviceReader",
     "SyntheticFile",
     "SyntheticImageBuilder",
     "SyntheticImageManifest",

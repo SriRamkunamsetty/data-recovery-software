@@ -14,8 +14,8 @@ This document tracks milestone progress, verification results, and known issues 
 | **M4: Destination safety & recovery** | **Completed** | `pytest` (99/99), `ruff`, `mypy` strict passing | `VolumeIdentityResolver`, atomic writer, collision resolver, `recoverx recover` CLI |
 | **M5a: FAT12/16/32 metadata recovery** | **Completed** | `pytest` (124/124), `ruff`, `mypy` strict passing | FAT12/16/32 BPB, backup boot sector, LFN reassembly, contiguous chain check, `recoverx scan` metadata-first |
 | **M5b: exFAT metadata recovery** | **Completed** | `pytest` (142/142), `ruff`, `mypy` strict passing | exFAT VBR, backup VBR, entry-set checksum, NoFatChain, allocation bitmap, deleted entry recovery |
-| **M6: Partition analysis & lost volumes** | Pending | - | Next milestone |
-| **M7: Disk imaging** | Pending | - | - |
+| **M6: Partition analysis & lost volumes** | **Completed** | `pytest` (174/174), `ruff`, `mypy` strict passing | MBR, GPT header/array CRC32 checks, backup GPT fallback, FAT/exFAT/NTFS lost volume sweep, in-memory subdevice |
+| **M7: Disk imaging** | Pending | - | Next milestone |
 | **M8: Application services & SQLite** | Pending | - | - |
 | **M9: Desktop UI (PySide6)** | Pending | - | - |
 | **M10: Windows device access** | Pending | - | - |
@@ -281,6 +281,63 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M5b): Partition table analysis (M6), disk imaging (M7), NTFS (M12).
 * **Blockers:**
   * None. Ready for Milestone M6.
+
+---
+
+### Milestone M6: Partition analysis and lost-volume recovery
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * In-Memory SubDevice Mapping (`SubDeviceReader` in `src/recoverx/infrastructure/storage/subdevice.py`):
+    * Implements `ReadOnlyBlockDevice` representing an in-memory view of a partition slice at `base_offset` with `size_bytes`.
+    * Translates offsets strictly in memory without ever writing to the source device (Rule 1 of CLAUDE.md).
+    * Performs bounds validation; completely lacks write, truncate, erase, format, or repair APIs.
+    * Allows metadata parsers (`FatFileSystem`, `ExFatFileSystem`) and carvers to operate directly on partition offsets.
+  * MBR and EBR Parser (`src/recoverx/partitions/mbr.py`):
+    * Parses sector 0 Master Boot Record, verifies boot signature `0x55 0xAA`, extracts 32-bit disk signature and 4 primary partition records.
+    * Detects active/bootable flags (`0x80`), partition types (FAT12, FAT16, FAT32, NTFS/exFAT, Linux, etc.), and identifies Protective MBR (`0xEE`).
+    * Safely traverses Extended Boot Record (EBR) chains for logical partitions with cycle detection and depth bounds.
+    * Detects corrupted entries, non-standard boot indicators, and out-of-bounds sector ranges.
+  * GPT Parser and CRC32 Validation (`src/recoverx/partitions/gpt.py`):
+    * Parses Primary GPT (LBA 1) and Backup GPT (last LBA).
+    * Computes standard IEEE 802.3 CRC32 over header bytes (with CRC field zeroed) and verifies against stored `HeaderCRC32`.
+    * Reads full partition entry array (`num_entries * entry_size`) and verifies CRC32 against stored `PartitionEntryArrayCRC32`.
+    * Evaluates `GptHeaderHealth` across `BOTH_VALID`, `PRIMARY_VALID_BACKUP_CORRUPT`, `BACKUP_VALID_PRIMARY_CORRUPT`, `BOTH_CORRUPT`, `NOT_FOUND`.
+    * Automatic recovery from Backup GPT: when primary GPT is corrupted/invalid but backup GPT is intact, partition entries are automatically recovered from the backup copy.
+  * Lost Volume Scanner (`src/recoverx/partitions/scanner.py`):
+    * Scans block storage for lost, orphaned, or unpartitioned filesystem boot sectors.
+    * Detects primary and backup boot structures across FAT12, FAT16, FAT32, exFAT, and NTFS.
+    * Reconstructs original volume start offset when primary boot sectors are wiped/destroyed:
+      * FAT32: Surviving backup boot sector at sector 6 reconstructs volume start at `S - 6`.
+      * exFAT: Surviving backup boot region at sector 12 reconstructs volume start at `S - 12`.
+      * NTFS: Surviving backup boot sector at the volume's last sector reconstructs volume start at `S - total_sectors`.
+    * Forward-looking primary detection prevents duplicate candidate reporting when both primary and backup exist.
+  * Partition Analyzer Orchestrator (`src/recoverx/partitions/analyzer.py`):
+    * Evaluates disk layout: MBR -> GPT -> Lost Volume Sweep.
+    * Produces structured `PartitionAnalysisResult` with factual evidence notes.
+    * Provides `create_subdevice()` helper for seamless downstream analysis.
+  * Command-Line Interface:
+    * Added `recoverx partitions IMAGE [--json] [--scan-lost]` command.
+    * Updated `recoverx scan` and `recoverx recover` to automatically discover and recover files from all detected partitions and lost volumes.
+  * Fixtures and Comprehensive Testing:
+    * `SyntheticPartitionBuilder` in `tests/fixtures/partition_builder.py`: builds MBR, EBR chains, healthy GPT, corrupted-primary GPT, and lost volume disk images with embedded filesystems.
+    * Unit tests: `test_mbr.py`, `test_gpt.py`, `test_subdevice.py`, `test_lost_volume_scanner.py`, `test_partition_analyzer.py`, `test_cli_partitions.py`.
+    * Property testing: `test_partition_hypothesis.py` fuzzing MBR and GPT parsers with arbitrary byte sequences.
+    * Immutability verification: `ImageHashSnapshot` verifies source disk images are bit-for-bit unchanged after partition analysis and subdevice recovery.
+  * Documentation:
+    * Added Section 4 to `docs/CAPABILITIES.md` recording MBR, GPT, and lost volume discovery as **Supported**.
+    * Added ADR 011 to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (108 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 101 source files in strict mode).
+  * `pytest`: Passed (174 passed, 2 skipped in 9.39s).
+* **Scope Boundaries:**
+  * Completed: MBR parsing, EBR traversal, GPT primary and backup parsing, CRC32 checks, backup GPT fallback, FAT32/exFAT/NTFS lost volume discovery and backup boot structure recovery, in-memory SubDeviceReader mapping, CLI integration, tests.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M6): Raw disk imaging (M7), persistent SQLite scan database (M8), desktop GUI (M9), NTFS MFT parsing (M12).
+* **Blockers:**
+  * None. Ready for Milestone M7.
+
 
 
 

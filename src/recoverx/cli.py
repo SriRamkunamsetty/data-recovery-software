@@ -17,6 +17,7 @@ from recoverx.filesystems.exfat.parser import ExFatFileSystem
 from recoverx.filesystems.fat.parser import FatFileSystem
 from recoverx.infrastructure.storage.image import DiskImageReader
 from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
+from recoverx.partitions.analyzer import PartitionAnalyzer
 from recoverx.services.recovery_service import RecoveryService
 
 
@@ -57,29 +58,45 @@ def _handle_scan(args: argparse.Namespace) -> int:
     metadata_offsets: set[int] = set()
 
     with reader:
-        # Step 1: Filesystem Metadata Probe (FAT12/16/32, then exFAT)
-        fs_parser: FileSystemParser | None = None
+        # Step 1: Partition & Lost Volume Analysis
+        part_result = PartitionAnalyzer.analyze(reader)
+        volume_offsets: list[int] = []
+        if part_result.volume_candidates:
+            for vc in part_result.volume_candidates:
+                volume_offsets.append(vc.start_offset_bytes)
+        elif part_result.partitions:
+            for p in part_result.partitions:
+                volume_offsets.append(p.start_offset_bytes)
+        else:
+            volume_offsets.append(0)
+
+        # Probe filesystem metadata across detected volumes
         fat_fs = FatFileSystem()
         exfat_fs = ExFatFileSystem()
 
-        if fat_fs.detect(reader):
-            fs_parser = fat_fs
-        elif exfat_fs.detect(reader):
-            fs_parser = exfat_fs
+        for base_offset in volume_offsets:
+            fs_parser: FileSystemParser | None = None
+            if fat_fs.detect(reader, base_offset=base_offset):
+                fs_parser = fat_fs
+            elif exfat_fs.detect(reader, base_offset=base_offset):
+                fs_parser = exfat_fs
 
-        if fs_parser is not None:
-            info = fs_parser.get_fs_info(reader)
-            if info is not None and not args.json:
-                sys.stderr.write(
-                    f"Detected filesystem: {info.fs_type.value} "
-                    f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
+            if fs_parser is not None:
+                info = fs_parser.get_fs_info(reader, base_offset=base_offset)
+                if info is not None and not args.json:
+                    lbl = info.volume_label or "None"
+                    sys.stderr.write(
+                        f"Detected filesystem at offset {base_offset}: {info.fs_type.value} "
+                        f"(Label: {lbl}, Clusters: {info.total_clusters})\n"
+                    )
+                meta_cands = fs_parser.recover_candidates(
+                    reader,
+                    base_offset=base_offset,
+                    include_active=getattr(args, "include_active", False),
                 )
-            meta_cands = fs_parser.recover_candidates(
-                reader, base_offset=0, include_active=getattr(args, "include_active", False)
-            )
-            candidates.extend(meta_cands)
-            for mc in meta_cands:
-                metadata_offsets.add(mc.source_offset)
+                candidates.extend(meta_cands)
+                for mc in meta_cands:
+                    metadata_offsets.add(mc.source_offset)
 
         # Step 2: Carving Phase (optional or default)
         if not getattr(args, "no_carve", False):
@@ -172,28 +189,43 @@ def _handle_recover(args: argparse.Namespace) -> int:
             candidates: list[RecoveryCandidate] = []
             metadata_offsets: set[int] = set()
 
-            fs_parser: FileSystemParser | None = None
+            part_result = PartitionAnalyzer.analyze(reader)
+            volume_offsets: list[int] = []
+            if part_result.volume_candidates:
+                for vc in part_result.volume_candidates:
+                    volume_offsets.append(vc.start_offset_bytes)
+            elif part_result.partitions:
+                for p in part_result.partitions:
+                    volume_offsets.append(p.start_offset_bytes)
+            else:
+                volume_offsets.append(0)
+
             fat_fs = FatFileSystem()
             exfat_fs = ExFatFileSystem()
 
-            if fat_fs.detect(reader):
-                fs_parser = fat_fs
-            elif exfat_fs.detect(reader):
-                fs_parser = exfat_fs
+            for base_offset in volume_offsets:
+                fs_parser: FileSystemParser | None = None
+                if fat_fs.detect(reader, base_offset=base_offset):
+                    fs_parser = fat_fs
+                elif exfat_fs.detect(reader, base_offset=base_offset):
+                    fs_parser = exfat_fs
 
-            if fs_parser is not None:
-                info = fs_parser.get_fs_info(reader)
-                if info is not None and not args.json:
-                    sys.stderr.write(
-                        f"Detected filesystem: {info.fs_type.value} "
-                        f"(Label: {info.volume_label or 'None'}, Clusters: {info.total_clusters})\n"
+                if fs_parser is not None:
+                    info = fs_parser.get_fs_info(reader, base_offset=base_offset)
+                    if info is not None and not args.json:
+                        lbl = info.volume_label or "None"
+                        sys.stderr.write(
+                            f"Detected filesystem at offset {base_offset}: {info.fs_type.value} "
+                            f"(Label: {lbl}, Clusters: {info.total_clusters})\n"
+                        )
+                    meta_cands = fs_parser.recover_candidates(
+                        reader,
+                        base_offset=base_offset,
+                        include_active=getattr(args, "include_active", False),
                     )
-                meta_cands = fs_parser.recover_candidates(
-                    reader, base_offset=0, include_active=getattr(args, "include_active", False)
-                )
-                candidates.extend(meta_cands)
-                for mc in meta_cands:
-                    metadata_offsets.add(mc.source_offset)
+                    candidates.extend(meta_cands)
+                    for mc in meta_cands:
+                        metadata_offsets.add(mc.source_offset)
 
             if not getattr(args, "no_carve", False):
                 scanner = CarvingScanner(chunk_size_bytes=args.chunk_size)
@@ -247,6 +279,95 @@ def _handle_recover(args: argparse.Namespace) -> int:
                 f"{r.status:<18} {_format_size(r.bytes_written):<12} {r.destination_path}\n"
             )
         sys.stdout.write("-" * 80 + "\n")
+
+    return 0
+
+
+def _handle_partitions(args: argparse.Namespace) -> int:
+    """Handle `recoverx partitions` command."""
+    image_path = Path(args.image).resolve()
+    if not image_path.exists():
+        sys.stderr.write(f"Error: Disk image not found: {image_path}\n")
+        return 1
+
+    try:
+        with DiskImageReader(image_path) as reader:
+            result = PartitionAnalyzer.analyze(
+                reader,
+                force_lost_volume_scan=getattr(args, "scan_lost", False),
+            )
+    except Exception as e:
+        sys.stderr.write(f"Error analyzing partitions: {e}\n")
+        return 1
+
+    if args.json:
+        data = {
+            "table_type": result.table_type.value,
+            "gpt_health": result.gpt_health.value if result.gpt_health else None,
+            "disk_identifier": result.disk_signature_or_guid,
+            "partitions": [
+                {
+                    "number": p.partition_number,
+                    "start_sector": p.start_sector,
+                    "sector_count": p.sector_count,
+                    "start_offset": p.start_offset_bytes,
+                    "size_bytes": p.size_bytes,
+                    "type": p.partition_type_or_guid,
+                    "name": p.name,
+                    "bootable": p.is_bootable,
+                }
+                for p in result.partitions
+            ],
+            "volume_candidates": [
+                {
+                    "start_sector": v.start_sector,
+                    "sector_count": v.sector_count,
+                    "start_offset": v.start_offset_bytes,
+                    "size_bytes": v.size_bytes,
+                    "filesystem": v.filesystem_type.value,
+                    "source": v.detection_source,
+                    "evidence": v.evidence,
+                    "is_backup": v.is_backup_structure,
+                }
+                for v in result.volume_candidates
+            ],
+            "notes": result.notes,
+        }
+        sys.stdout.write(json.dumps(data, indent=2) + "\n")
+    else:
+        sys.stdout.write(f"Partition Scheme: {result.table_type.value}\n")
+        if result.disk_signature_or_guid:
+            sys.stdout.write(f"Disk Identifier : {result.disk_signature_or_guid}\n")
+        if result.gpt_health:
+            sys.stdout.write(f"GPT Health      : {result.gpt_health.value}\n")
+        sys.stdout.write("\n")
+
+        if result.partitions:
+            sys.stdout.write(f"Discovered {len(result.partitions)} partition(s):\n")
+            sys.stdout.write("-" * 80 + "\n")
+            sys.stdout.write(
+                f"{'#':<3} {'Start Sector':<14} {'Sectors':<12} {'Size':<12} "
+                f"{'Type':<10} {'Name'}\n"
+            )
+            sys.stdout.write("-" * 80 + "\n")
+            for p in result.partitions:
+                sys.stdout.write(
+                    f"{p.partition_number:<3} {p.start_sector:<14} {p.sector_count:<12} "
+                    f"{_format_size(p.size_bytes):<12} {p.partition_type_or_guid:<10} {p.name}\n"
+                )
+            sys.stdout.write("-" * 80 + "\n\n")
+
+        if result.volume_candidates:
+            sys.stdout.write(f"Discovered {len(result.volume_candidates)} candidate volume(s):\n")
+            sys.stdout.write("-" * 80 + "\n")
+            sys.stdout.write(f"{'Start Sector':<14} {'Size':<12} {'Filesystem':<12} {'Source'}\n")
+            sys.stdout.write("-" * 80 + "\n")
+            for v in result.volume_candidates:
+                sys.stdout.write(
+                    f"{v.start_sector:<14} {_format_size(v.size_bytes):<12} "
+                    f"{v.filesystem_type.value:<12} {v.detection_source}\n"
+                )
+            sys.stdout.write("-" * 80 + "\n")
 
     return 0
 
@@ -330,12 +451,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Include active non-deleted files in recovery",
     )
 
+    # `partitions` command
+    part_parser = subparsers.add_parser(
+        "partitions", help="Analyze MBR/GPT partition tables and scan for lost volumes"
+    )
+    part_parser.add_argument("image", help="Path to raw disk image file")
+    part_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output partition and volume analysis as formatted JSON",
+    )
+    part_parser.add_argument(
+        "--scan-lost",
+        action="store_true",
+        help="Force deep boot-sector sweep to discover lost/orphaned volumes",
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "scan":
         return _handle_scan(args)
     if args.command == "recover":
         return _handle_recover(args)
+    if args.command == "partitions":
+        return _handle_partitions(args)
 
     parser.print_help()
     return 0

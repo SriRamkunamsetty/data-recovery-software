@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -17,8 +18,21 @@ from PySide6.QtWidgets import (
 )
 
 from recoverx.domain.session import DeviceTriageResult
-from recoverx.infrastructure.storage.base import ReadOnlyBlockDevice
+from recoverx.infrastructure.storage.base import (
+    DeviceAccessDeniedError,
+    ReadOnlyBlockDevice,
+)
 from recoverx.infrastructure.storage.image import DiskImageReader
+from recoverx.infrastructure.storage.win32.discovery import (
+    DiscoveredWindowsDevice,
+    WindowsDeviceEnumerator,
+)
+from recoverx.infrastructure.storage.win32.helper.client import (
+    NamedPipeClient,
+    WindowsElevatedDeviceReader,
+    launch_elevated_helper,
+)
+from recoverx.infrastructure.storage.win32.reader import WindowsRawDeviceReader
 from recoverx.services.device_triage_service import DeviceTriageService
 
 logger = logging.getLogger(__name__)
@@ -45,6 +59,7 @@ class DeviceSelectionPage(QWidget):
         self.triage_service = triage_service
         self.current_reader: ReadOnlyBlockDevice | None = None
         self.current_path: str = ""
+        self.discovered_devices: list[DiscoveredWindowsDevice] = []
 
         self.setAccessibleName("Device Selection Page")
         self.setAccessibleDescription(
@@ -63,6 +78,33 @@ class DeviceSelectionPage(QWidget):
         title.setProperty("class", "PageTitle")
         title.setAccessibleName("Device Selection Page Title")
         layout.addWidget(title)
+
+        # Physical Device Selection Frame
+        phys_frame = QFrame()
+        phys_frame.setProperty("class", "CardFrame")
+        phys_layout = QHBoxLayout(phys_frame)
+
+        phys_label = QLabel("<strong>Physical Storage Media:</strong>")
+        phys_layout.addWidget(phys_label)
+
+        self.device_combo = QComboBox()
+        self.device_combo.setAccessibleName("Physical Device Dropdown")
+        self.device_combo.addItem("Click 'Scan for Devices' to detect connected media")
+        phys_layout.addWidget(self.device_combo, stretch=1)
+
+        self.refresh_devices_btn = QPushButton("Scan for Devices")
+        self.refresh_devices_btn.setAccessibleName("Scan Physical Devices Button")
+        self.refresh_devices_btn.clicked.connect(self.refresh_device_list)
+        phys_layout.addWidget(self.refresh_devices_btn)
+
+        self.select_device_btn = QPushButton("Select Device")
+        self.select_device_btn.setProperty("class", "SecondaryButton")
+        self.select_device_btn.setAccessibleName("Select Physical Device Button")
+        self.select_device_btn.clicked.connect(self._on_select_physical_device)
+        self.select_device_btn.setEnabled(False)
+        phys_layout.addWidget(self.select_device_btn)
+
+        layout.addWidget(phys_frame)
 
         # File picker bar
         picker_frame = QFrame()
@@ -227,6 +269,101 @@ class DeviceSelectionPage(QWidget):
         except Exception as exc:
             logger.exception("Failed to open disk image: %s", exc)
             self.triage_status_lbl.setText("<strong>Error Opening Image</strong>")
+            self.triage_desc_lbl.setText(str(exc))
+            self.confirm_btn.setEnabled(False)
+
+    def refresh_device_list(self) -> None:
+        """Scan system for connected physical drives."""
+        enumerator = WindowsDeviceEnumerator()
+        self.discovered_devices = enumerator.enumerate_devices()
+        self.device_combo.clear()
+
+        if not self.discovered_devices:
+            self.device_combo.addItem("No physical drives detected (or non-Windows)")
+            self.select_device_btn.setEnabled(False)
+            return
+
+        for dev in self.discovered_devices:
+            removable_tag = " [Removable]" if dev.is_removable else ""
+            elev_tag = " [Admin Required]" if dev.requires_elevation else ""
+            volumes = f" - Drive(s): {', '.join(dev.drive_letters)}" if dev.drive_letters else ""
+            cap_str = _format_size(dev.capacity_bytes)
+            name = f"{dev.vendor} {dev.product}".strip() or f"Drive {dev.physical_disk_number}"
+            label = (
+                f"Disk {dev.physical_disk_number}: {name} ({cap_str}){volumes}"
+                f"{removable_tag}{elev_tag}"
+            )
+            self.device_combo.addItem(label)
+
+        self.select_device_btn.setEnabled(True)
+
+    def _on_select_physical_device(self) -> None:
+        idx = self.device_combo.currentIndex()
+        if 0 <= idx < len(self.discovered_devices):
+            self.load_physical_device(self.discovered_devices[idx])
+
+    def load_physical_device(self, dev: DiscoveredWindowsDevice) -> None:
+        """Open and triage a discovered physical storage device."""
+        if self.current_reader is not None:
+            self.current_reader.close()
+            self.current_reader = None
+
+        try:
+            reader: ReadOnlyBlockDevice
+            try:
+                reader = WindowsRawDeviceReader(
+                    device_path=dev.device_path,
+                    physical_disk_number=dev.physical_disk_number,
+                )
+            except DeviceAccessDeniedError:
+                # Requires elevation: attempt to connect via elevated helper
+                client = NamedPipeClient("recoverx_read_helper_default")
+                if not client.connect(timeout_ms=1000):
+                    launch_elevated_helper("recoverx_read_helper_default")
+                reader = WindowsElevatedDeviceReader(
+                    pipe_client=client,
+                    device_path=dev.device_path,
+                    physical_disk_number=dev.physical_disk_number,
+                    owns_client=True,
+                )
+
+            self.current_reader = reader
+            self.current_path = dev.device_path
+
+            self.path_display.setText(f"{dev.device_path} ({dev.vendor} {dev.product})".strip())
+            self.path_display.setStyleSheet("color: #0f172a; font-weight: 600;")
+
+            # Display identity
+            id_rec = reader.identity
+            self.vendor_lbl.setText(f"{id_rec.vendor} {id_rec.product}".strip() or "Physical Disk")
+            self.capacity_lbl.setText(
+                f"{_format_size(id_rec.capacity_bytes)} ({id_rec.capacity_bytes:,} bytes)"
+            )
+            self.sector_lbl.setText(
+                f"{id_rec.logical_sector_size} B Logical / {id_rec.physical_sector_size} B Physical"
+            )
+            self.hash_lbl.setText(
+                f"<code>{id_rec.sector0_hash[:24]}...</code>" if id_rec.sector0_hash else "None"
+            )
+
+            # Run triage
+            triage: DeviceTriageResult = self.triage_service.triage_device(reader)
+            self.triage_status_lbl.setText(f"<strong>Triage: {triage.status.value}</strong>")
+            self.triage_desc_lbl.setText(
+                f"{triage.explanation} &bull; <em>{triage.recommended_action}</em>"
+            )
+
+            if triage.recommend_imaging:
+                self.triage_box.setProperty("class", "WarningBox")
+            else:
+                self.triage_box.setProperty("class", "NoticeBox")
+            self.triage_box.update()
+
+            self.confirm_btn.setEnabled(triage.can_scan)
+
+        except Exception as exc:
+            logger.exception("Failed to open physical device: %s", exc)
+            self.triage_status_lbl.setText("<strong>Error Opening Physical Device</strong>")
             self.triage_desc_lbl.setText(str(exc))
             self.confirm_btn.setEnabled(False)
 

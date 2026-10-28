@@ -42,7 +42,7 @@ Labels strictly follow the tri-state rating: **Supported**, **Partial**, or **No
 | **Source / Destination Separation** | **Supported** | Same volume and same physical disk unconditionally refused (`DestinationOnSourceError`); ambiguous identities refused (`AmbiguousSeparationError`). |
 | **Atomic File Writing** | **Supported** | Staged in `.recoverx_tmp_*.part` files with `fsync()`, SHA-256 verification, and immediate purge on error (no partial files). |
 | **Path Traversal & Reserved Names** | **Supported** | Neutralizes `../`, ADS (`:`), trailing dots/spaces, and rewrites all 22 Windows reserved device names (`CON`, `PRN`, etc.). |
-| **Windows Raw Disk Access** | Pending | Scheduled for Milestone M10 (elevated helper process and named pipe). |
+| **Windows Raw Disk Access** | **Supported** | Audited Win32 `kernel32` ctypes bindings with strict read-only flag assertions; sector-aligned unbuffered I/O; out-of-process elevated worker over local named pipe with UAC on-demand elevation (`launch_elevated_helper`); live physical device discovery without shell-outs. |
 
 ---
 

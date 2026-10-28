@@ -243,3 +243,29 @@ This document tracks all key technical, architectural, tooling, and dependency d
   6. Add `recoverx gui` CLI subcommand and application factory `create_application()`.
 * **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M9 acceptance criteria.
 
+---
+
+## ADR 015: Windows Physical Block Device Access, Audited ctypes Win32 Abstraction, and Elevated Helper Named Pipe Protocol
+
+* **Status:** Accepted
+* **Context:** Under Windows 10/11 x64, physical block devices (`\\.\PhysicalDrive0..N`) and raw partition volumes require administrative privileges and strictly sector-aligned unbuffered I/O. Under CLAUDE.md Rules 1, 2, 3, 5 and Section 2, 3, 5 of MASTER_PROMPT.md:
+  1. The source storage medium is strictly read-only by construction.
+  2. No shell-outs (PowerShell, diskpart, wmic) are permitted for device handling or volume enumeration.
+  3. The main application (GUI/CLI) must run with standard user privileges. When elevated privileges are needed to access physical drives, an out-of-process elevated worker must be spawned on demand over a local IPC channel.
+  4. The elevated worker must expose the narrowest possible interface: open-by-validated-identity, read_at(offset, length), metadata/geometry, close, and cancel. It must strictly reject writes, modifications, formatting, or repair requests.
+  5. Windows volume identity and separation checks must resolve drive letters and UNC paths to their backing physical disk number and volume serial to prevent data collisions and enforce separation rules.
+* **Decision:**
+  1. Implement `recoverx.infrastructure.storage.win32.api` providing audited ctypes wrappers for `kernel32` APIs (`CreateFileW`, `CloseHandle`, `ReadFile`, `SetFilePointerEx`, `DeviceIoControl`, `CancelIoEx`, `CreateNamedPipeW`, `ConnectNamedPipe`, `DisconnectNamedPipe`). Enforce an immediate `ValueError` assertion in `win32_create_file` if `GENERIC_WRITE` (0x40000000) is ever supplied.
+  2. Map Win32 error codes (`ERROR_ACCESS_DENIED`, `ERROR_SHARING_VIOLATION`, `ERROR_DEVICE_NOT_CONNECTED`, `ERROR_NOT_READY`, `ERROR_INVALID_HANDLE`, `ERROR_OPERATION_ABORTED`) to specific, actionable domain `StorageError` subclasses.
+  3. Implement `WindowsRawDeviceReader(ReadOnlyBlockDevice)` opening physical devices or volumes with `GENERIC_READ`, `FILE_SHARE_READ | FILE_SHARE_WRITE`, computing sector 0 SHA-256 fingerprints, transparently handling sector-aligned unbuffered I/O slicing, and supporting `revalidate_identity()` and `cancel()`.
+  4. Implement `WindowsDeviceEnumerator` using pure Win32 APIs (`IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS`, `IOCTL_STORAGE_QUERY_PROPERTY`, `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX`) to enumerate physical drives, bus types, capacity, and associated volume drive letters.
+  5. Implement `WindowsVolumeIdentityResolver(VolumeIdentityResolver)` resolving filesystem paths to volume serials and physical disk numbers to enforce Rules 2 & 3.
+  6. Implement elevated read helper IPC:
+     - `HelperRequest` and `HelperResponse` JSON-lines message wire protocol with base64 data framing.
+     - `ElevatedReadHelperService` running on a local Win32 named pipe, validating request bounds and executing strictly read-only commands (`PING`, `OPEN`, `READ`, `CANCEL`, `CLOSE`, `EXIT`).
+     - `NamedPipeClient` and `WindowsElevatedDeviceReader(ReadOnlyBlockDevice)` client proxy.
+     - `launch_elevated_helper` utilizing `ShellExecuteW` with verb `"runas"` to elevate on demand without running the main application as Administrator.
+  7. Integrate physical device selection and live hardware enumeration into `DeviceSelectionPage` in PySide6 GUI.
+* **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M10 acceptance criteria.
+
+

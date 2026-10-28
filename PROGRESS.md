@@ -18,7 +18,7 @@ This document tracks milestone progress, verification results, and known issues 
 | **M7: Disk imaging** | **Completed** | `pytest` (188/188), `ruff`, `mypy` strict passing | RangeStatusMap, copy/trim/scrape multi-pass imaging, ddrescue mapfile export, resume identity check, `recoverx image` CLI |
 | **M8: Application services & SQLite** | **Completed** | `pytest` (208/208), `ruff`, `mypy` strict passing | SQLite repositories, corruption backup/rebuild, JobManager locking, DeviceTriageService, ScanCoordinator 10-step, ReportService JSON/HTML |
 | **M9: Desktop UI (PySide6)** | **Completed** | `pytest` (224/224), `ruff`, `mypy` strict passing | Modern light/dark theme, QThread worker threads, preview & destination dialogs, 7 pages, demo mode |
-| **M10: Windows device access** | Pending | - | Next milestone |
+| **M10: Windows device access** | **Completed** | `pytest` (248/248), `ruff`, `mypy` strict passing | Win32 ctypes kernel32 bindings, sector-aligned I/O, elevated named pipe helper, WindowsDeviceEnumerator, WindowsVolumeIdentityResolver |
 | **M11: Extra formats & previews** | Pending | - | - |
 | **M12: NTFS metadata recovery** | Pending | - | - |
 | **M13: Packaging & release checks** | Pending | - | - |
@@ -492,6 +492,56 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M9): Windows elevated physical device helper (M10), additional carving formats (M11), NTFS MFT parsing (M12).
 * **Blockers:**
   * None. Ready for Milestone M10.
+
+---
+
+### Milestone M10: Windows device access
+* **Date:** 2026-10-28
+* **Scope Completed:**
+  * Audited Win32 ctypes function bindings (`src/recoverx/infrastructure/storage/win32/api.py`):
+    * Loaded `kernel32` with explicit argument types and return types.
+    * Enforced immediate safety assertion in `win32_create_file` rejecting `GENERIC_WRITE` (0x40000000).
+    * `map_win32_error` translating Win32 error codes (`ERROR_ACCESS_DENIED`, `ERROR_SHARING_VIOLATION`, `ERROR_DEVICE_NOT_CONNECTED`, `ERROR_NOT_READY`, `ERROR_INVALID_HANDLE`, `ERROR_OPERATION_ABORTED`) to domain `StorageError` subclasses.
+  * Strictly read-only raw device reader (`src/recoverx/infrastructure/storage/win32/reader.py`):
+    * `WindowsRawDeviceReader(ReadOnlyBlockDevice)` opening `\\.\PhysicalDriveN` or volume handles with `GENERIC_READ`, `FILE_SHARE_READ | FILE_SHARE_WRITE`.
+    * IOCTL queries for capacity and sector size (`IOCTL_DISK_GET_LENGTH_INFO`, `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX`).
+    * Sector 0 cryptographic SHA-256 fingerprinting.
+    * Transparent unbuffered sector alignment and slicing in `read_at(offset, length)`.
+    * Medium disconnection detection via `revalidate_identity()` and cancellation via `CancelIoEx`.
+  * Pure Win32 device enumeration (`src/recoverx/infrastructure/storage/win32/discovery.py`):
+    * `WindowsDeviceEnumerator` querying connected physical drives without shell-outs (PowerShell, diskpart, wmic).
+    * Mapping volume drive letters to physical disks via `IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS`.
+  * Windows volume and physical disk identity resolver (`src/recoverx/infrastructure/storage/win32/resolver.py`):
+    * `WindowsVolumeIdentityResolver(VolumeIdentityResolver)` resolving filesystem paths to volume serial numbers and physical disk numbers to enforce Rules 2 & 3 of `CLAUDE.md`.
+  * Out-of-process elevated read helper (`src/recoverx/infrastructure/storage/win32/helper/`):
+    * Protocol: `HelperRequest` and `HelperResponse` JSON-lines messages with base64 data framing.
+    * Service: `ElevatedReadHelperService` serving named pipe requests with strict bounds checking.
+    * Client Proxy: `NamedPipeClient` and `WindowsElevatedDeviceReader(ReadOnlyBlockDevice)`.
+    * On-demand launcher: `launch_elevated_helper` invoking `ShellExecuteW` with verb `"runas"`.
+  * Desktop UI Integration:
+    * `DeviceSelectionPage` updated with physical drive combo box, "Scan for Devices" button, and on-demand elevation handling.
+    * `app.py` wired to use `WindowsVolumeIdentityResolver` on Windows.
+  * Comprehensive Test Suite:
+    * `tests/unit/test_win32_api.py`: Tested error code mapping, safety write rejection, read, seek, IOCTL, and cancel.
+    * `tests/unit/test_win32_reader.py`: Tested sector alignment, unaligned reads, sector 0 hashing, and disconnection detection.
+    * `tests/unit/test_win32_discovery.py`: Tested device enumeration and model conversion.
+    * `tests/unit/test_win32_resolver.py`: Tested volume serial extraction and physical disk separation enforcement.
+    * `tests/unit/test_win32_helper.py`: Tested protocol serialization, service dispatch, and proxy reader I/O.
+  * Documentation:
+    * Added ADR 015 to `docs/DECISIONS.md`.
+    * Updated Section 3 in `docs/CAPABILITIES.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (166 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 159 source files in strict mode).
+  * `pytest`: Passed (248 passed, 2 skipped in 16.26s).
+* **Scope Boundaries:**
+  * Completed: Win32 API ctypes bindings, Windows raw device reader, device enumerator, volume identity resolver, elevated named pipe helper service/client, UI integration, tests, docs.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M10): Additional carving formats (M11), NTFS MFT parsing (M12), release installer packaging (M13).
+* **Blockers:**
+  * None. Ready for Milestone M11.
+
 
 
 

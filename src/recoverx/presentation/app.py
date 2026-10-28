@@ -8,7 +8,11 @@ from PySide6.QtWidgets import QApplication
 
 from recoverx.config import AppConfig
 from recoverx.infrastructure.persistence.db import DatabaseManager
-from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
+from recoverx.infrastructure.storage.resolver import (
+    FakeVolumeIdentityResolver,
+    VolumeIdentityResolver,
+)
+from recoverx.infrastructure.storage.win32.resolver import WindowsVolumeIdentityResolver
 from recoverx.presentation.main_window import MainWindow
 from recoverx.presentation.theme import apply_theme
 from recoverx.services.device_triage_service import DeviceTriageService
@@ -21,6 +25,7 @@ logger = logging.getLogger(__name__)
 def create_application(
     db_path: Path | None = None,
     theme: str = "light",
+    resolver: VolumeIdentityResolver | None = None,
 ) -> tuple[QApplication, MainWindow]:
     """Initialize and construct the RecoverX desktop application and services."""
     config = AppConfig()
@@ -32,7 +37,12 @@ def create_application(
 
     # Initialize persistence and services
     db_manager = DatabaseManager(db_path)
-    resolver = FakeVolumeIdentityResolver()
+    if resolver is None:
+        if sys.platform == "win32":
+            resolver = WindowsVolumeIdentityResolver()
+        else:
+            resolver = FakeVolumeIdentityResolver()
+
     session_service = SessionService(db_manager=db_manager, resolver=resolver)
     triage_service = DeviceTriageService()
     report_service = ReportService()

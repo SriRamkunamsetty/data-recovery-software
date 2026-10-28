@@ -27,6 +27,26 @@ class DeviceDisconnectedError(StorageError):
     """Raised when a block device is disconnected, removed, or unreachable."""
 
 
+class DeviceRemovedError(DeviceDisconnectedError):
+    """Raised when a removable block storage device is removed during operation."""
+
+
+class DeviceAccessDeniedError(StorageError):
+    """Raised when access to a physical disk or volume is denied (needs elevation)."""
+
+
+class DeviceSharingViolationError(StorageError):
+    """Raised when another process or volume lock prevents exclusive/shared read access."""
+
+
+class DeviceAlignmentError(StorageError):
+    """Raised when buffer or sector alignment requirements are violated."""
+
+
+class DeviceHangError(StorageError):
+    """Raised when an I/O read operation hangs or times out and is cancelled."""
+
+
 class ReadOnlyBlockDevice(ABC):
     """Abstract interface for strictly read-only block devices and disk images.
 

@@ -8,6 +8,7 @@ from recoverx.filesystems.base import (
 )
 from recoverx.filesystems.exfat.parser import ExFatFileSystem
 from recoverx.filesystems.fat.parser import FatFileSystem
+from recoverx.filesystems.ntfs.parser import NtfsFileSystem
 
 __all__ = [
     "CorruptedBootSectorError",
@@ -16,4 +17,5 @@ __all__ = [
     "FatFileSystem",
     "FileSystemError",
     "FileSystemParser",
+    "NtfsFileSystem",
 ]

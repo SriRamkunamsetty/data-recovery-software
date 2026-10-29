@@ -16,6 +16,7 @@ from recoverx.domain.scan import ScanProgress
 from recoverx.filesystems.base import FileSystemParser
 from recoverx.filesystems.exfat.parser import ExFatFileSystem
 from recoverx.filesystems.fat.parser import FatFileSystem
+from recoverx.filesystems.ntfs.parser import NtfsFileSystem
 from recoverx.infrastructure.storage.image import DiskImageReader
 from recoverx.infrastructure.storage.resolver import FakeVolumeIdentityResolver
 from recoverx.partitions.analyzer import PartitionAnalyzer
@@ -75,6 +76,7 @@ def _handle_scan(args: argparse.Namespace) -> int:
         # Probe filesystem metadata across detected volumes
         fat_fs = FatFileSystem()
         exfat_fs = ExFatFileSystem()
+        ntfs_fs = NtfsFileSystem()
 
         for base_offset in volume_offsets:
             fs_parser: FileSystemParser | None = None
@@ -82,6 +84,8 @@ def _handle_scan(args: argparse.Namespace) -> int:
                 fs_parser = fat_fs
             elif exfat_fs.detect(reader, base_offset=base_offset):
                 fs_parser = exfat_fs
+            elif ntfs_fs.detect(reader, base_offset=base_offset):
+                fs_parser = ntfs_fs
 
             if fs_parser is not None:
                 info = fs_parser.get_fs_info(reader, base_offset=base_offset)
@@ -204,6 +208,7 @@ def _handle_recover(args: argparse.Namespace) -> int:
 
             fat_fs = FatFileSystem()
             exfat_fs = ExFatFileSystem()
+            ntfs_fs = NtfsFileSystem()
 
             for base_offset in volume_offsets:
                 fs_parser: FileSystemParser | None = None
@@ -211,6 +216,8 @@ def _handle_recover(args: argparse.Namespace) -> int:
                     fs_parser = fat_fs
                 elif exfat_fs.detect(reader, base_offset=base_offset):
                     fs_parser = exfat_fs
+                elif ntfs_fs.detect(reader, base_offset=base_offset):
+                    fs_parser = ntfs_fs
 
                 if fs_parser is not None:
                     info = fs_parser.get_fs_info(reader, base_offset=base_offset)

@@ -291,5 +291,33 @@ This document tracks all key technical, architectural, tooling, and dependency d
      - Updated `ReportService` to aggregate `format_breakdown` (counts and byte totals per extension) in JSON and display dedicated Format Breakdown and Verified Scope & Factual Limitations tables in HTML reports.
 * **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M11 acceptance criteria.
 
+---
+
+## ADR 017: NTFS Metadata Recovery, Update Sequence (Fixup) Verification, Non-Resident Data-Run Decoding, and Hierarchical Path Reconstruction
+
+* **Status:** Accepted
+* **Context:** Milestone M12 requires implementing NTFS filesystem metadata recovery. Under Section 7 of MASTER_PROMPT.md and CLAUDE.md Rules 1-7:
+  1. NTFS volume parameters must be read from the primary boot sector with automatic fallback to the backup boot sector at the end of the volume.
+  2. MFT records must be verified and updated in memory using the update sequence (fixup) array, rejecting torn writes and `BAAD` signatures without modifying the source medium.
+  3. Attributes (`$STANDARD_INFORMATION`, `$FILE_NAME`, `$DATA`, `$VOLUME_NAME`, `$BITMAP`) must be parsed with strict bounds checking.
+  4. Non-resident data runs with relative cluster deltas must be decoded with cluster count and LCN limits.
+  5. Deleted file records (`flags & 0x0001 == 0`) must be detected and verified against `$Bitmap` (Record 6) to detect cluster reallocation.
+  6. Hierarchical directory paths must be reconstructed by resolving parent record references up to Root Record 5 with cycle detection.
+* **Decision:**
+  1. Implement `recoverx.filesystems.ntfs`:
+     - `NtfsBootSector` (`boot.py`): Parses OEM ID `NTFS    `, sector/cluster geometry, total sectors, `$MFT` start LCN, and negative power-of-two MFT record sizes (`-10` -> 1024 bytes). Supports backup boot sector fallback.
+     - `apply_fixups` (`fixup.py`): Verifies and applies update sequence arrays in memory, validating sector-end USNs and raising `NtfsFixupError` on torn writes or `BAAD` records.
+     - `parse_data_runs` and `parse_attribute` (`attributes.py`): Decodes compressed data runs with signed delta LCNs, validates bounds, parses resident attributes and non-resident extents, and extracts `$FILE_NAME` metadata (Win32, DOS, POSIX namespaces).
+     - `MftRecord` (`mft_record.py`): Parses 1024-byte record headers, detects deleted records, prioritizes Win32 names, and resolves default `$DATA` streams.
+     - `MftReader` (`mft.py`): Resolves Record 0's non-resident data runs to translate record numbers to device byte offsets, supporting sequential record iteration with bounds limits.
+     - `NtfsBitmap` (`bitmap.py`): Parses `$Bitmap` (Record 6) to verify whether deleted file clusters remain unallocated or were overwritten.
+     - `NtfsPathResolver` (`directory.py`): Reconstructs hierarchical directory paths up to Record 5 (`Root`), guarding against loops with cycle detection.
+     - `NtfsDataStreamReader` (`data_recovery.py`): Extracts resident and non-resident file payloads up to declared real sizes.
+     - `NtfsFileSystem` (`parser.py`): Implements `FileSystemParser` interface, detecting NTFS, providing `FileSystemInfo`, and extracting `RecoveryCandidate` objects with factual statuses.
+  2. Implement `MemoryBlockDevice` (`src/recoverx/infrastructure/storage/memory.py`): Provides an in-memory `ReadOnlyBlockDevice` backed by immutable byte buffers for testing and payload validation.
+  3. Integrated `NtfsFileSystem` into `ScanCoordinator` (Step 5) and `cli.py` (`recoverx scan` and `recoverx recover`).
+* **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M12 acceptance criteria.
+
+
 
 

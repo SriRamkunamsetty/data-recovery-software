@@ -20,7 +20,7 @@ This document tracks milestone progress, verification results, and known issues 
 | **M9: Desktop UI (PySide6)** | **Completed** | `pytest` (224/224), `ruff`, `mypy` strict passing | Modern light/dark theme, QThread worker threads, preview & destination dialogs, 7 pages, demo mode |
 | **M10: Windows device access** | **Completed** | `pytest` (248/248), `ruff`, `mypy` strict passing | Win32 ctypes kernel32 bindings, sector-aligned I/O, elevated named pipe helper, WindowsDeviceEnumerator, WindowsVolumeIdentityResolver |
 | **M11: Extra formats & previews** | **Completed** | `pytest` (274/274), `ruff`, `mypy` strict passing | Second-set validators (MP4/MOV, HEIC, GIF, BMP, WAV/AVI, MP3, RAW, SQLite), sandboxed preview subprocess, report format breakdown |
-| **M12: NTFS metadata recovery** | Pending | - | - |
+| **M12: NTFS metadata recovery** | **Completed** | `pytest` (303/303), `ruff`, `mypy` strict passing | MFT record fixups, resident/non-resident data runs, deleted detection, path reconstruction, `$Bitmap` verification |
 | **M13: Packaging & release checks** | Pending | - | - |
 
 ---
@@ -582,6 +582,50 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M11): NTFS MFT parsing (M12), release installer packaging (M13).
 * **Blockers:**
   * None. Ready for Milestone M12.
+
+---
+
+### Milestone M12: NTFS metadata recovery
+* **Date:** 2026-10-29
+* **Scope Completed:**
+  * NTFS Filesystem Parsing Infrastructure (`src/recoverx/filesystems/ntfs/`):
+    * `NtfsBootSector` (`boot.py`): Parses OEM ID `NTFS    `, sector size, sectors per cluster, total sectors, `$MFT` start LCN, `$MFTMirr` start LCN, negative power-of-two MFT record sizes (`-10` -> 1024 bytes), and volume serial number. Features automatic backup boot sector fallback when the primary sector 0 is damaged.
+    * `apply_fixups` (`fixup.py`): In-memory verification and application of NTFS update sequences (fixup arrays). Replaces sector-end USNs with original bytes and raises `NtfsFixupError` upon encountering torn writes or `BAAD` damaged records without modifying the source medium.
+    * `parse_data_runs` and `parse_attribute` (`attributes.py`): Decodes byte-compressed data-run lists with relative signed LCN deltas, bounds checks cluster counts and volume extents, detects sparse allocations, and parses both resident attributes and non-resident extents. Parses `$FILE_NAME` structures across Win32, DOS, and POSIX namespaces.
+    * `MftRecord` (`mft_record.py`): Decodes 1024-byte MFT record headers, identifies active vs deleted records (`flags & 0x0001 == 0`), distinguishes directories from files (`flags & 0x0002`), prioritizes Win32 names over 8.3 short names, and extracts default `$DATA` streams.
+    * `MftReader` (`mft.py`): Resolves Record 0's non-resident data runs to translate any MFT record index to an absolute device offset, supporting sequential record iteration with safety limits.
+    * `NtfsBitmap` (`bitmap.py`): Reads `$Bitmap` (MFT record 6) to verify cluster allocation status, detecting whether a deleted file's original clusters remain unallocated or have been overwritten.
+    * `NtfsPathResolver` (`directory.py`): Reconstructs hierarchical directory paths by walking parent references up to root record 5, incorporating depth limits and cycle detection.
+    * `NtfsDataStreamReader` (`data_recovery.py`): Reads resident payloads directly from the MFT record or reconstructs non-resident streams from cluster runs, truncating padding slack.
+    * `NtfsFileSystem` (`parser.py`): Implements `FileSystemParser` interface, detecting NTFS volumes, reporting `FileSystemInfo`, and extracting `RecoveryCandidate` objects with factual statuses.
+  * In-Memory Block Device (`src/recoverx/infrastructure/storage/memory.py`):
+    * `MemoryBlockDevice`: Clean read-only block device backed by an immutable byte buffer for memory-mapped testing, synthetic images, and in-memory candidate verification.
+  * Integration into Orchestrator & CLI:
+    * `ScanCoordinator`: Integrated `NtfsFileSystem` into Step 5 metadata recovery across partitioned devices, lost volumes, and unpartitioned disks.
+    * `cli.py`: Integrated `NtfsFileSystem` into `recoverx scan` and `recoverx recover` subcommands.
+  * Test Suite:
+    * `tests/fixtures/ntfs_builder.py`: `SyntheticNtfsBuilder` generating valid NTFS disk images with boot sectors, system records ($MFT, $Volume, $Bitmap, Root), deleted resident files, deleted non-resident files, overwritten files, and directories.
+    * `tests/unit/test_ntfs_boot.py`: 5 tests verifying primary boot parameters and backup boot fallback.
+    * `tests/unit/test_ntfs_fixup.py`: 6 tests verifying fixup replacement, torn write detection, and `BAAD` rejection.
+    * `tests/unit/test_ntfs_attributes.py`: 7 tests verifying single/multiple data runs, sparse runs, resident attributes, and `$FILE_NAME` parsing.
+    * `tests/unit/test_ntfs_mft_record.py`: 4 tests verifying deleted flags, directory flags, name priorities, and data sizes.
+    * `tests/unit/test_ntfs_recovery.py`: 2 tests verifying end-to-end recovery of deleted resident and non-resident files with SHA-256 verification and active file inclusion.
+    * `tests/property/test_ntfs_hypothesis.py`: 5 Hypothesis fuzzing tests covering fixup parsing, data runs, MFT records, boot sectors, and attribute decoding.
+  * Documentation:
+    * Updated Section 1 of `docs/CAPABILITIES.md`, marking NTFS as **Supported** with honest limitations.
+    * Added **ADR 017** to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed (197 files already formatted).
+  * `mypy src tests`: Passed (Success: no issues found in 190 source files in strict mode).
+  * `pytest`: Passed (303 passed, 2 skipped in 32.55s).
+* **Scope Boundaries:**
+  * Completed: NTFS boot parsing, backup boot fallback, fixup application, attribute parsing, data runs, MFT record parsing, MFT reader, allocation bitmap, path resolver, data recovery, tests, docs.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M12): Release installer packaging, SBOM, and smoke testing scripts (M13).
+* **Blockers:**
+  * None. Ready for Milestone M13.
+
 
 
 

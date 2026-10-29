@@ -17,6 +17,7 @@ from recoverx.domain.session import (
 )
 from recoverx.filesystems.exfat.parser import ExFatFileSystem
 from recoverx.filesystems.fat.parser import FatFileSystem
+from recoverx.filesystems.ntfs.parser import NtfsFileSystem
 from recoverx.infrastructure.storage.base import ReadOnlyBlockDevice
 from recoverx.partitions.analyzer import PartitionAnalyzer
 
@@ -69,6 +70,7 @@ class ScanCoordinator:
         self.triage_service = DeviceTriageService()
         self.fat_parser = FatFileSystem()
         self.exfat_parser = ExFatFileSystem()
+        self.ntfs_parser = NtfsFileSystem()
 
     def coordinate_scan(
         self,
@@ -182,6 +184,11 @@ class ScanCoordinator:
                         part_candidates = self.exfat_parser.recover_candidates(sub)
                         rebased = self._rebase_candidates(part_candidates, part.start_offset_bytes)
                         metadata_candidates.extend(rebased)
+                    # Probe NTFS
+                    elif self.ntfs_parser.detect(sub):
+                        part_candidates = self.ntfs_parser.recover_candidates(sub)
+                        rebased = self._rebase_candidates(part_candidates, part.start_offset_bytes)
+                        metadata_candidates.extend(rebased)
                 finally:
                     sub.close()
         else:
@@ -190,6 +197,8 @@ class ScanCoordinator:
                 metadata_candidates.extend(self.fat_parser.recover_candidates(device))
             elif self.exfat_parser.detect(device):
                 metadata_candidates.extend(self.exfat_parser.recover_candidates(device))
+            elif self.ntfs_parser.detect(device):
+                metadata_candidates.extend(self.ntfs_parser.recover_candidates(device))
 
         emit_progress("metadata_completed", 0, device.size_bytes, len(metadata_candidates))
         token.check_cancelled()

@@ -10,9 +10,14 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from recoverx.carving.validators.bmp import BmpValidator
+from recoverx.carving.validators.gif import GifValidator
+from recoverx.carving.validators.isobmff import IsoBmffValidator
 from recoverx.carving.validators.jpeg import JpegValidator
 from recoverx.carving.validators.pdf import PdfValidator
 from recoverx.carving.validators.png import PngValidator
+from recoverx.carving.validators.riff import RiffValidator
+from recoverx.carving.validators.sqlite import SqliteValidator
 from recoverx.carving.validators.zip_ooxml import ZipValidator
 from recoverx.domain.enums import CandidateStatus
 from recoverx.infrastructure.storage.fixtures import SyntheticImageBuilder
@@ -92,5 +97,95 @@ def test_zip_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
     validator = ZipValidator()
     with DiskImageReader(manifest.image_path) as reader:
         result = validator.validate(reader, header_offset=512)
+        assert isinstance(result.status, CandidateStatus)
+        assert result.size_bytes >= 0
+
+
+@given(payload=st.binary(min_size=0, max_size=4000))
+@settings(max_examples=50)
+def test_isobmff_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
+    """Fuzz IsoBmffValidator with arbitrary byte streams prefixed by ftyp."""
+    fuzzed_data = b"\x00\x00\x00\x18ftypisom" + payload
+    test_path = fuzzer_tmp_dir / "fuzz_isobmff.img"
+
+    builder = SyntheticImageBuilder(total_size_bytes=len(fuzzed_data) + 512)
+    builder.add_raw(fuzzed_data, offset=128)
+    manifest = builder.build(test_path)
+
+    validator = IsoBmffValidator()
+    with DiskImageReader(manifest.image_path) as reader:
+        result = validator.validate(reader, header_offset=128)
+        assert isinstance(result.status, CandidateStatus)
+        assert result.size_bytes >= 0
+
+
+@given(payload=st.binary(min_size=0, max_size=4000))
+@settings(max_examples=50)
+def test_gif_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
+    """Fuzz GifValidator with arbitrary byte streams prefixed by GIF89a."""
+    fuzzed_data = b"GIF89a\x0a\x00\x0a\x00\x80\x00\x00" + payload
+    test_path = fuzzer_tmp_dir / "fuzz_gif.img"
+
+    builder = SyntheticImageBuilder(total_size_bytes=len(fuzzed_data) + 512)
+    builder.add_raw(fuzzed_data, offset=64)
+    manifest = builder.build(test_path)
+
+    validator = GifValidator()
+    with DiskImageReader(manifest.image_path) as reader:
+        result = validator.validate(reader, header_offset=64)
+        assert isinstance(result.status, CandidateStatus)
+        assert result.size_bytes >= 0
+
+
+@given(payload=st.binary(min_size=0, max_size=4000))
+@settings(max_examples=50)
+def test_bmp_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
+    """Fuzz BmpValidator with arbitrary byte streams prefixed by BM."""
+    fuzzed_data = b"BM\x36\x00\x00\x00\x00\x00\x00\x00\x36\x00\x00\x00\x28\x00\x00\x00" + payload
+    test_path = fuzzer_tmp_dir / "fuzz_bmp.img"
+
+    builder = SyntheticImageBuilder(total_size_bytes=len(fuzzed_data) + 512)
+    builder.add_raw(fuzzed_data, offset=128)
+    manifest = builder.build(test_path)
+
+    validator = BmpValidator()
+    with DiskImageReader(manifest.image_path) as reader:
+        result = validator.validate(reader, header_offset=128)
+        assert isinstance(result.status, CandidateStatus)
+        assert result.size_bytes >= 0
+
+
+@given(payload=st.binary(min_size=0, max_size=4000))
+@settings(max_examples=50)
+def test_riff_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
+    """Fuzz RiffValidator with arbitrary byte streams prefixed by RIFF."""
+    fuzzed_data = b"RIFF\x24\x00\x00\x00WAVEfmt " + payload
+    test_path = fuzzer_tmp_dir / "fuzz_riff.img"
+
+    builder = SyntheticImageBuilder(total_size_bytes=len(fuzzed_data) + 512)
+    builder.add_raw(fuzzed_data, offset=256)
+    manifest = builder.build(test_path)
+
+    validator = RiffValidator()
+    with DiskImageReader(manifest.image_path) as reader:
+        result = validator.validate(reader, header_offset=256)
+        assert isinstance(result.status, CandidateStatus)
+        assert result.size_bytes >= 0
+
+
+@given(payload=st.binary(min_size=0, max_size=4000))
+@settings(max_examples=50)
+def test_sqlite_validator_fuzzing(fuzzer_tmp_dir: Path, payload: bytes) -> None:
+    """Fuzz SqliteValidator with arbitrary byte streams prefixed by SQLite format 3."""
+    fuzzed_data = b"SQLite format 3\x00\x10\x00\x01\x01\x00\x40\x20\x20" + payload
+    test_path = fuzzer_tmp_dir / "fuzz_sqlite.img"
+
+    builder = SyntheticImageBuilder(total_size_bytes=len(fuzzed_data) + 512)
+    builder.add_raw(fuzzed_data, offset=128)
+    manifest = builder.build(test_path)
+
+    validator = SqliteValidator()
+    with DiskImageReader(manifest.image_path) as reader:
+        result = validator.validate(reader, header_offset=128)
         assert isinstance(result.status, CandidateStatus)
         assert result.size_bytes >= 0

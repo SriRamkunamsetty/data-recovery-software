@@ -127,26 +127,30 @@ class CarvingScanner:
                         break
 
                     abs_offset = curr_offset + idx
+                    cand_offset = abs_offset - sig.magic_offset
+                    if cand_offset < 0:
+                        pos = idx + 1
+                        continue
 
                     # Check sector alignment rule if required
-                    if sig.sector_aligned and (abs_offset % sector_size != 0):
+                    if sig.sector_aligned and (cand_offset % sector_size != 0):
                         pos = idx + 1
                         continue
 
                     # Deduplication check
-                    if abs_offset in found_offsets or self._is_in_skipped_ranges(
-                        abs_offset, skipped_ranges
+                    if cand_offset in found_offsets or self._is_in_skipped_ranges(
+                        cand_offset, skipped_ranges
                     ):
                         pos = idx + len(sig.magic)
                         continue
 
                     # Validate candidate structure
-                    result = sig.validator.validate(device, abs_offset)
-                    found_offsets.add(abs_offset)
+                    result = sig.validator.validate(device, cand_offset)
+                    found_offsets.add(cand_offset)
 
                     # Create RecoveryCandidate
                     candidate_id = f"cand-{uuid.uuid4().hex[:8]}"
-                    filename = f"carved_0x{abs_offset:08X}.{result.extension}"
+                    filename = f"carved_0x{cand_offset:08X}.{result.extension}"
                     rel_path = f"Carved/{result.extension.upper()}/{filename}"
 
                     cand = RecoveryCandidate(
@@ -155,7 +159,7 @@ class CarvingScanner:
                         relative_path=rel_path,
                         extension=result.extension,
                         size_bytes=result.size_bytes,
-                        source_offset=abs_offset,
+                        source_offset=cand_offset,
                         source_method=RecoverySourceMethod.CARVED,
                         status=result.status,
                         sha256_hash=result.sha256,

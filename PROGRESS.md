@@ -19,7 +19,7 @@ This document tracks milestone progress, verification results, and known issues 
 | **M8: Application services & SQLite** | **Completed** | `pytest` (208/208), `ruff`, `mypy` strict passing | SQLite repositories, corruption backup/rebuild, JobManager locking, DeviceTriageService, ScanCoordinator 10-step, ReportService JSON/HTML |
 | **M9: Desktop UI (PySide6)** | **Completed** | `pytest` (224/224), `ruff`, `mypy` strict passing | Modern light/dark theme, QThread worker threads, preview & destination dialogs, 7 pages, demo mode |
 | **M10: Windows device access** | **Completed** | `pytest` (248/248), `ruff`, `mypy` strict passing | Win32 ctypes kernel32 bindings, sector-aligned I/O, elevated named pipe helper, WindowsDeviceEnumerator, WindowsVolumeIdentityResolver |
-| **M11: Extra formats & previews** | Pending | - | - |
+| **M11: Extra formats & previews** | **Completed** | `pytest` (274/274), `ruff`, `mypy` strict passing | Second-set validators (MP4/MOV, HEIC, GIF, BMP, WAV/AVI, MP3, RAW, SQLite), sandboxed preview subprocess, report format breakdown |
 | **M12: NTFS metadata recovery** | Pending | - | - |
 | **M13: Packaging & release checks** | Pending | - | - |
 
@@ -541,6 +541,48 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M10): Additional carving formats (M11), NTFS MFT parsing (M12), release installer packaging (M13).
 * **Blockers:**
   * None. Ready for Milestone M11.
+
+---
+
+### Milestone M11: Extra formats, sandboxed preview subprocess, and polished reports
+* **Date:** 2026-10-29
+* **Scope Completed:**
+  * Second-Set Format Carving Validators (`src/recoverx/carving/validators/`):
+    * `IsoBmffValidator` (`isobmff.py`): Parses hierarchical box structures (`ftyp`, `moov`, `mdat`, `meta`), verifies 32/64-bit atom headers, checks major/compatible brands, and classifies `mp4`, `mov`, `m4a`, `heic`, `avif`.
+    * `GifValidator` (`gif.py`): Validates GIF87a and GIF89a header signatures, logical screen descriptors, computes Global Color Table size, walks graphic/application/comment extension sub-blocks and image descriptors, and validates terminal `0x3B` trailer.
+    * `BmpValidator` (`bmp.py`): Validates `BITMAPFILEHEADER` and DIB header sizes (12, 40, 52, 56, 108, 124 bytes), verifies 4-byte row stride alignment, and confirms exact file extents.
+    * `RiffValidator` (`riff.py`): Validates RIFF containers, walking subchunks (`fmt `, `data`, `LIST`, `hdrl`, `movi`), enforcing 2-byte word padding, and validating WAVE and AVI streams.
+    * `Mp3Validator` (`mp3.py`): Decodes ID3v2 syncsafe tag headers, detects optional ID3v2 footers, and verifies consecutive MPEG Audio Layer III frame sync headers (`0xFFE0`) with valid bitrate and sample rate indices.
+    * `TiffRawValidator` (`tiff_raw.py`): Parses both little-endian (`II\x2a\x00`) and big-endian (`MM\x00\x2a`) TIFF headers, walks up to 10 IFDs, parses `StripOffsets`/`StripByteCounts` and `TileOffsets`/`TileByteCounts`, and detects camera RAW makes/models (Canon CR2, Nikon NEF, Sony ARW, DNG, TIFF).
+    * `SqliteValidator` (`sqlite.py`): Validates 100-byte SQLite 3 database header, power-of-two page sizes (512 to 65536 bytes), declared page counts, and B-tree page 1 leaf/interior table headers.
+  * Signature Registry & Scanner Integration:
+    * Extended `FileSignature` with `magic_offset: int = 0` to support signatures located at non-zero offsets (such as `ftyp` at offset 4).
+    * Registered all 12 formats in `default_registry()` and updated `CarvingScanner` to offset search candidates accurately.
+  * Sandboxed Preview Subprocess (`src/recoverx/presentation/preview/`):
+    * `PreviewWorker` (`worker.py`): Standalone worker executing in an isolated child subprocess with a 10 MiB read cap, maximum dimension downscaling (4096px), sanitized text decoding, audio/video duration and codec metadata extraction, SQLite schema/table enumeration, and ZIP archive inspection with zip-slip path traversal detection.
+    * `PreviewSandbox` (`sandbox.py`): Process manager spawning `PreviewWorker` with a hard 3.0-second execution timeout and SIGKILL/terminate guarantees, completely preventing main GUI hangs or segfaults from corrupted or adversarial payloads.
+    * `FilePreviewDialog` (`presentation/dialogs/preview_dialog.py`): Redesigned to use `PreviewSandbox`, rendering rich preview cards, metadata tables, and security notices.
+  * Forensic Report Polish:
+    * `ReportService` (`services/report_service.py`): Aggregates `format_breakdown` (counts and byte sizes per file type) into JSON export and adds styled "Discovered Format Breakdown" and "Verified Scope & Factual Limitations" sections to HTML reports.
+  * Comprehensive Testing:
+    * `tests/unit/test_carving_validators_extra.py`: Unit tests for all second-set validators across valid, corrupted, and truncated inputs.
+    * `tests/unit/test_preview_sandbox.py`: Unit tests verifying subprocess execution, timeout enforcement, corrupt file resilience, and image/archive decoding.
+    * `tests/property/test_validators_hypothesis.py`: Fuzzing tests generating arbitrary bytes to ensure validators never crash or raise unhandled exceptions.
+  * Documentation:
+    * Updated `docs/CAPABILITIES.md` with verified capabilities and honest limitations for all 12 formats and preview sandbox.
+    * Added ADR 016 to `docs/DECISIONS.md`.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed.
+  * `mypy src tests`: Passed (Success: no issues found in strict mode).
+  * `pytest`: Passed (274 passed, 2 skipped in 29.00s).
+* **Scope Boundaries:**
+  * Completed: Second-set carving validators, scanner registry integration, sandboxed preview worker and manager, preview dialog integration, report format breakdown, unit & property tests, documentation.
+  * Partial: None.
+  * Not implemented (intentionally out of scope for M11): NTFS MFT parsing (M12), release installer packaging (M13).
+* **Blockers:**
+  * None. Ready for Milestone M12.
+
 
 
 

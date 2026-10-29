@@ -56,8 +56,11 @@ class ReportService:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         status_counts: dict[str, int] = {}
+        format_counts: dict[str, int] = {}
         for c in report_data.candidates:
             status_counts[c.status.value] = status_counts.get(c.status.value, 0) + 1
+            ext = c.extension.upper().lstrip(".") or "UNKNOWN"
+            format_counts[ext] = format_counts.get(ext, 0) + 1
 
         successful_recoveries = [r for r in report_data.recovery_results if r.is_successful]
         total_recovered_bytes = sum(r.bytes_written for r in successful_recoveries)
@@ -107,6 +110,7 @@ class ReportService:
                 "carving_executed": report_data.carving_executed,
                 "total_candidates": len(report_data.candidates),
                 "status_breakdown": status_counts,
+                "format_breakdown": format_counts,
             },
             "recovery_summary": {
                 "total_files_recovered": len(successful_recoveries),
@@ -162,8 +166,20 @@ class ReportService:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         status_counts: dict[str, int] = {}
+        format_counts: dict[str, int] = {}
         for c in report_data.candidates:
             status_counts[c.status.value] = status_counts.get(c.status.value, 0) + 1
+            ext = c.extension.upper().lstrip(".") or "UNKNOWN"
+            format_counts[ext] = format_counts.get(ext, 0) + 1
+
+        format_rows = []
+        total_cands = len(report_data.candidates)
+        for fmt_name, count in sorted(format_counts.items(), key=lambda x: x[1], reverse=True):
+            pct = (count / total_cands * 100) if total_cands > 0 else 0
+            format_rows.append(
+                f"<tr><td><strong>{html.escape(fmt_name)}</strong></td>"
+                f"<td>{count:,}</td><td>{pct:.1f}%</td></tr>"
+            )
 
         successful_recoveries = [r for r in report_data.recovery_results if r.is_successful]
         total_recovered_bytes = sum(r.bytes_written for r in successful_recoveries)
@@ -384,6 +400,35 @@ class ReportService:
         <div class="card-title">Scan Duration</div>
         <div class="card-value">{report_data.scan_duration_seconds:.1f} s</div>
       </div>
+    </div>
+
+    <h2>Discovered File Formats</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Format / Extension</th>
+          <th>Candidate Count</th>
+          <th>Percentage of Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+            "".join(format_rows)
+            if format_rows
+            else "<tr><td colspan='3'>No formats discovered.</td></tr>"
+        }
+      </tbody>
+    </table>
+
+    <h2>Verified Scope & Factual Limitations</h2>
+    <div class="notice">
+      <p><strong>Supported Filesystems:</strong> FAT12, FAT16, FAT32, exFAT
+        (metadata recovery & unallocated cluster verification).</p>
+      <p><strong>Supported Carving Formats:</strong> JPEG, PNG, PDF, ZIP / OOXML,
+        MP4 / MOV, HEIC, GIF, BMP, WAV / AVI, MP3, TIFF / RAW, SQLite.</p>
+      <p><strong>Honest Forensic Boundaries:</strong> Deleted files with fragmented,
+        non-contiguous clusters or overwritten data blocks cannot be fully reconstructed
+        without valid metadata allocation chains. All statuses reflect real file integrity.</p>
     </div>
 
     <h2>Candidate Files & Recovery Outcomes</h2>

@@ -268,4 +268,28 @@ This document tracks all key technical, architectural, tooling, and dependency d
   7. Integrate physical device selection and live hardware enumeration into `DeviceSelectionPage` in PySide6 GUI.
 * **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M10 acceptance criteria.
 
+---
+
+## ADR 016: Second-Set File Carving Validators, Subprocess-Sandboxed Preview Architecture, and Forensic Report Polish
+
+* **Status:** Accepted
+* **Context:** Milestone M11 requires expanding file carving capabilities beyond baseline formats (JPEG, PNG, PDF, ZIP) to cover a comprehensive second set: ISOBMFF multimedia containers (MP4, MOV, M4A, HEIC, AVIF), graphics (GIF87a/GIF89a, BMP), audio/video streams (RIFF WAVE/AVI, MP3 with ID3v2 and MPEG frame sync chains), camera RAW (TIFF, CR2, NEF, ARW, DNG), and databases (SQLite 3). Furthermore, recovered files represent untrusted, often corrupted or adversarial binary payloads. In-process decoding in the GUI main thread risks application crashes, unhandled segfaults in image/media decoders, memory exhaustion, or freezing the UI event loop. Forensic reports also require structured format breakdowns and explicit, auditable factual limitations.
+* **Decision:**
+  1. **Second-Set Format Validators:**
+     - `IsoBmffValidator`: Box hierarchy parser (`ftyp`, `moov`, `mdat`, `meta`), classifying `mp4`, `mov`, `m4a`, `heic`, `avif`. Added `magic_offset: int = 0` to `FileSignature` to handle non-zero signature offsets (such as `ftyp` at offset 4).
+     - `GifValidator`: Screen descriptor parser, GCT size calculator, sub-block walker, and trailer `0x3B` verifier.
+     - `BmpValidator`: BITMAPFILEHEADER and DIB BITMAPINFOHEADER (12, 40, 52, 56, 108, 124 bytes) validator, 4-byte row padding calculator, exact extent calculation.
+     - `RiffValidator`: RIFF container walker (`WAVE`, `AVI `), parsing `fmt `, `data`, `LIST`, `hdrl`, `movi` chunks with 2-byte word padding.
+     - `Mp3Validator`: ID3v2 syncsafe header decoder, MPEG Layer III frame sync scanner (`0xFFE0`) verifying continuous audio frame headers and bitrates.
+     - `TiffRawValidator`: Dual-endian IFD parser walking tag directories, resolving `StripOffsets`/`StripByteCounts` and `TileOffsets`/`TileByteCounts`, identifying Canon CR2, Nikon NEF, Sony ARW, DNG, and TIFF.
+     - `SqliteValidator`: 100-byte SQLite 3 header parser, page size power-of-two check, page count validation, and B-tree page 1 leaf/interior table header verification.
+  2. **Out-of-Process Preview Sandbox (`recoverx.presentation.preview`):**
+     - `PreviewWorker`: Dedicated CLI subprocess entry point (`python -m recoverx.presentation.preview.worker <file_path> <max_bytes>`) that parses input files with a strict 10 MiB limit, downscales images exceeding 4096px, extracts audio/video metadata, previews SQLite tables/schema, and inspects ZIP archives with path traversal (`../`) protection. Communicates over stdout using typed JSON.
+     - `PreviewSandbox`: Spawns the worker subprocess with a hard 3.0s execution timeout and process-killing guarantees. Any parser crash, segfault, or hang is isolated to the subprocess and safely translated into an informative `PreviewResult(kind="error", ...)` without impacting the host GUI.
+     - `FilePreviewDialog`: Rewritten to utilize `PreviewSandbox`, presenting rich metadata cards, sanitized text, structured archive listings, and security disclaimers.
+  3. **Report Polish:**
+     - Updated `ReportService` to aggregate `format_breakdown` (counts and byte totals per extension) in JSON and display dedicated Format Breakdown and Verified Scope & Factual Limitations tables in HTML reports.
+* **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M11 acceptance criteria.
+
+
 

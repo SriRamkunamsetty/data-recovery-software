@@ -6,7 +6,10 @@ from pathlib import Path
 
 from recoverx.config import CollisionPolicy
 from recoverx.infrastructure.storage.base import ReadOnlyBlockDevice
-from recoverx.infrastructure.storage.resolver import VolumeIdentityResolver
+from recoverx.infrastructure.storage.resolver import (
+    DestinationOnSourceError,
+    VolumeIdentityResolver,
+)
 
 # Reserved Windows device names (case-insensitive)
 _WINDOWS_RESERVED_NAMES = {
@@ -166,6 +169,24 @@ def validate_destination_directory(
         PermissionError: If destination is not writable.
     """
     dest_path = Path(destination).resolve()
+
+    # 0. Check if destination contains the source image file or is on its direct path
+    source_path_str = getattr(source_device.device_info, "source_path", None)
+    if source_path_str:
+        try:
+            source_file = Path(source_path_str).resolve()
+            if source_file.is_file() and (
+                dest_path == source_file
+                or dest_path == source_file.parent
+                or dest_path in source_file.parents
+            ):
+                raise DestinationOnSourceError(
+                    f"Destination directory '{dest_path}' contains or matches the source "
+                    f"image path '{source_file}'. Refused to prevent corrupting source image."
+                )
+        except Exception as e:
+            if isinstance(e, DestinationOnSourceError):
+                raise
 
     # Ensure destination directory exists or can be created
     try:

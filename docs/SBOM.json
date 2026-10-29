@@ -1,0 +1,247 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "RecoverX-1.0.0-SBOM",
+  "documentNamespace": "https://github.com/SriRamkunamsetty/data-recovery-software/spdx/recoverx-1.0.0",
+  "creationInfo": {
+    "creators": [
+      "Organization: RecoverX Team",
+      "Tool: RecoverX Packaging Engine 1.0.0"
+    ],
+    "created": "2026-10-29T11:30:00Z"
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-RecoverX",
+      "name": "recoverx",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://github.com/SriRamkunamsetty/data-recovery-software",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "Copyright (c) 2026 RecoverX Team",
+      "description": "Forensic-grade, non-destructive data recovery software for removable media and disk images"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PySide6",
+      "name": "pyside6",
+      "versionInfo": "6.12.0",
+      "downloadLocation": "https://pypi.org/project/PySide6/6.12.0/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: The Qt Company",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only",
+      "copyrightText": "Copyright (C) 2026 The Qt Company Ltd.",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pyside6@6.12.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Shiboken6",
+      "name": "shiboken6",
+      "versionInfo": "6.12.0",
+      "downloadLocation": "https://pypi.org/project/shiboken6/6.12.0/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: The Qt Company",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only",
+      "copyrightText": "Copyright (C) 2026 The Qt Company Ltd.",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/shiboken6@6.12.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PyInstaller",
+      "name": "pyinstaller",
+      "versionInfo": "6.22.3",
+      "downloadLocation": "https://pypi.org/project/pyinstaller/6.22.3/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: PyInstaller Development Team",
+      "licenseConcluded": "GPL-2.0-or-later WITH PyInstaller-exception-2.0",
+      "licenseDeclared": "GPL-2.0-or-later WITH PyInstaller-exception-2.0",
+      "copyrightText": "Copyright (c) 2010-2026 PyInstaller Development Team",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pyinstaller@6.22.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Pefile",
+      "name": "pefile",
+      "versionInfo": "2024.8.26",
+      "downloadLocation": "https://pypi.org/project/pefile/2024.8.26/",
+      "filesAnalyzed": false,
+      "supplier": "Person: Ero Carrera",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2004-2024 Ero Carrera",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pefile@2024.8.26"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PyWin32Ctypes",
+      "name": "pywin32-ctypes",
+      "versionInfo": "0.2.3",
+      "downloadLocation": "https://pypi.org/project/pywin32-ctypes/0.2.3/",
+      "filesAnalyzed": false,
+      "supplier": "Person: Matthieu Darbois",
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Copyright (c) 2014-2023 Matthieu Darbois",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pywin32-ctypes@0.2.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Altgraph",
+      "name": "altgraph",
+      "versionInfo": "0.17.5",
+      "downloadLocation": "https://pypi.org/project/altgraph/0.17.5/",
+      "filesAnalyzed": false,
+      "supplier": "Person: Ronald Oussoren",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2004-2024 Ronald Oussoren",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/altgraph@0.17.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-TypingExtensions",
+      "name": "typing-extensions",
+      "versionInfo": "4.16.0",
+      "downloadLocation": "https://pypi.org/project/typing-extensions/4.16.0/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: Python Software Foundation",
+      "licenseConcluded": "PSF-2.0",
+      "licenseDeclared": "PSF-2.0",
+      "copyrightText": "Copyright (c) 2013-2026 Python Software Foundation",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/typing-extensions@4.16.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Pytest",
+      "name": "pytest",
+      "versionInfo": "9.2.0",
+      "downloadLocation": "https://pypi.org/project/pytest/9.2.0/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: Holger Krekel and pytest-dev contributors",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2004-2026 Holger Krekel and others",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pytest@9.2.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Hypothesis",
+      "name": "hypothesis",
+      "versionInfo": "6.170.12",
+      "downloadLocation": "https://pypi.org/project/hypothesis/6.170.12/",
+      "filesAnalyzed": false,
+      "supplier": "Person: David R. MacIver and contributors",
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "Copyright (c) 2013-2026 David R. MacIver and contributors",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/hypothesis@6.170.12"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Ruff",
+      "name": "ruff",
+      "versionInfo": "0.17.3",
+      "downloadLocation": "https://pypi.org/project/ruff/0.17.3/",
+      "filesAnalyzed": false,
+      "supplier": "Organization: Astral Software Inc.",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "copyrightText": "Copyright (c) 2022-2026 Astral Software Inc.",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/ruff@0.17.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Mypy",
+      "name": "mypy",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "https://pypi.org/project/mypy/2.4.0/",
+      "filesAnalyzed": false,
+      "supplier": "Person: Jukka Lehtosalo and contributors",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2012-2026 Jukka Lehtosalo and contributors",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/mypy@2.4.0"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-RecoverX"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-RecoverX",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-PySide6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-RecoverX",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-Shiboken6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-RecoverX",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-TypingExtensions"
+    }
+  ]
+}

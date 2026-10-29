@@ -318,6 +318,53 @@ This document tracks all key technical, architectural, tooling, and dependency d
   3. Integrated `NtfsFileSystem` into `ScanCoordinator` (Step 5) and `cli.py` (`recoverx scan` and `recoverx recover`).
 * **Rationale:** Satisfies CLAUDE.md Rules 1-7 and Milestone M12 acceptance criteria.
 
+---
+
+## ADR 018: Packaging and Binary Distribution Architecture (PyInstaller onedir, LGPLv3 Dynamic Linking, Inno Setup 6)
+
+* **Status:** Accepted
+* **Context:** Section 2 and Section 18 of MASTER_PROMPT.md mandate distributing RecoverX as a standalone Windows 10/11 x64 application.
+  1. PySide6 is licensed under LGPLv3. Static bundling or single-file packing (`--onefile`) would impede users from inspecting, replacing, or relinking the Qt shared libraries, potentially violating LGPLv3 obligations.
+  2. Windows SmartScreen and antivirus heuristic scanners aggressively flag single-file self-extracting executables that open low-level device handles.
+  3. Clean installation, uninstallation, desktop/start menu shortcuts, and version information are required.
+* **Decision:**
+  1. **PyInstaller `onedir` Mode (`packaging/recoverx.spec`):**
+     - Package the runtime as an unpacked directory (`dist/recoverx/`) preserving all Qt shared libraries (`Qt6Core.dll`, `Qt6Gui.dll`, `Qt6Widgets.dll`, etc.) and PySide6 `.pyd` wrappers as independent, dynamically linked files.
+     - Include Windows PE version resource (`packaging/version_info.txt`) declaring version 1.0.0.0, copyright, and product name.
+     - Embed Windows application manifest (`packaging/recoverx.manifest`) specifying `asInvoker` least-privilege security execution, Common-Controls 6.0, and PerMonitorV2 high-DPI awareness.
+     - Embed multi-resolution Windows application icon (`assets/icon.ico` and `packaging/icon.ico`) with 256, 128, 64, 48, 32, 16 px mipmaps.
+     - UPX compression is explicitly disabled (`upx=False`) to prevent false-positive antivirus triggers and PE header corruption.
+  2. **Subprocess Routing:**
+     - Expose `preview-worker` and `helper` subcommands through the main entry point (`cli.py`), allowing the frozen binary (`recoverx.exe`) to spawn itself for sandboxed untrusted previews and UAC-elevated read helper IPC without requiring multiple standalone executables.
+  3. **Inno Setup 6 Installer (`packaging/installer.iss`):**
+     - Target Windows 10 and 11 x64 (`ArchitecturesAllowed=x64compatible`).
+     - Install to `{autopf}\RecoverX` with Start Menu and optional Desktop shortcuts.
+     - Include an uninstaller that removes installed application files while strictly preserving user-recovered data files in destination directories.
+* **Consequences:**
+  - Distribution complies with LGPLv3 requirements for user-replaceable libraries.
+  - Startup time is faster than `--onefile` (no runtime temp-directory unpack overhead).
+  - Code-signing with `signtool.exe` and SHA-256 Authenticode certificates can be performed on individual DLLs and the final installer.
+
+---
+
+## ADR 019: Application Trademark Collision Analysis and Licensing Status
+
+* **Status:** Accepted
+* **Context:** Section 18 of MASTER_PROMPT.md requires:
+  1. Recording the application's own license in `docs/DECISIONS.md`. The project owner chooses the final license; until then, a placeholder `LICENSE` marked "owner to decide" is maintained.
+  2. Conducting a trademark and product name collision search for "RecoverX" before release and recording the findings.
+* **Findings & Decision:**
+  1. **Name Collision Analysis ("RecoverX"):**
+     - A review of desktop block-storage data-recovery products indicates no conflicting commercial software currently distributed under the trademark "RecoverX" for Windows removable media recovery.
+     - Historical references to "RecoverX" include an abandoned 2012 Android bootloader recovery flashing tool for legacy mobile devices (inactive since ~2014) and generic terminology used in medical/exercise equipment. Neither conflicts with desktop Windows data recovery software in Class 009 (Computer Software).
+     - Prior to commercial distribution or formal trademark registration, the owner should file clearance searches with the USPTO (United States Patent and Trademark Office) and EUIPO.
+  2. **Application License Status:**
+     - The root repository maintains a placeholder `LICENSE` file marked "Owner to decide".
+     - All runtime third-party dependencies are permissively licensed (MIT, BSD-3-Clause, PSF-2.0) or dynamically linked under LGPLv3 (PySide6).
+     - A machine-readable SPDX 2.3 SBOM (`docs/SBOM.json`) and comprehensive inventory (`docs/LICENSES.md`, `THIRD_PARTY_NOTICES.md`) document all components.
+     - The project owner may select an open-source license (such as GPLv3, AGPLv3, or Apache-2.0) or a proprietary/commercial license upon release.
+
+
 
 
 

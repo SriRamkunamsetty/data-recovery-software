@@ -21,7 +21,7 @@ This document tracks milestone progress, verification results, and known issues 
 | **M10: Windows device access** | **Completed** | `pytest` (248/248), `ruff`, `mypy` strict passing | Win32 ctypes kernel32 bindings, sector-aligned I/O, elevated named pipe helper, WindowsDeviceEnumerator, WindowsVolumeIdentityResolver |
 | **M11: Extra formats & previews** | **Completed** | `pytest` (274/274), `ruff`, `mypy` strict passing | Second-set validators (MP4/MOV, HEIC, GIF, BMP, WAV/AVI, MP3, RAW, SQLite), sandboxed preview subprocess, report format breakdown |
 | **M12: NTFS metadata recovery** | **Completed** | `pytest` (303/303), `ruff`, `mypy` strict passing | MFT record fixups, resident/non-resident data runs, deleted detection, path reconstruction, `$Bitmap` verification |
-| **M13: Packaging & release checks** | Pending | - | - |
+| **M13: Packaging & release checks** | **Completed** | PyInstaller onedir, Inno Setup, SBOM, smoke tests passing | Full packaging, documentation suite, license inventory, checksums, clean-machine smoke tests |
 
 ---
 
@@ -625,6 +625,62 @@ This document tracks milestone progress, verification results, and known issues 
   * Not implemented (intentionally out of scope for M12): Release installer packaging, SBOM, and smoke testing scripts (M13).
 * **Blockers:**
   * None. Ready for Milestone M13.
+
+---
+
+### Milestone M13: Packaging, documentation and release checks
+* **Date:** 2026-10-29
+* **Scope Completed:**
+  * PyInstaller `onedir` Standalone Distribution (`packaging/recoverx.spec`, `packaging/build_exe.py`):
+    * Configured in `onedir` mode to keep Qt and PySide6 dynamically linked in `dist/recoverx/_internal/PySide6/` (`Qt6Core.dll`, `Qt6Gui.dll`, `Qt6Widgets.dll`), fulfilling LGPLv3 dynamic linking and user-replacement obligations (ADR 002, ADR 018).
+    * Embedded Windows PE version resource (`packaging/version_info.txt`) declaring version 1.0.0.0, copyright, and product name.
+    * Embedded Windows application manifest (`packaging/recoverx.manifest`) specifying `asInvoker` least-privilege security execution, Common-Controls 6.0, and PerMonitorV2 high-DPI awareness.
+    * Multi-resolution application icons (`assets/icon.ico`, `assets/icon.png`, `packaging/icon.ico`) with 256, 128, 64, 48, 32, 16 px frames generated via `packaging/generate_icon.py`.
+    * Bundled data files (assets, licenses, capabilities documentation).
+    * UPX compression explicitly disabled (`upx=False`) to prevent false-positive antivirus triggers and PE header corruption.
+  * Inno Setup 6 Installer Configuration (`packaging/installer.iss`):
+    * 64-bit architecture enforcement (`ArchitecturesAllowed=x64compatible`).
+    * Installs to `{autopf}\RecoverX` with Start Menu shortcuts and optional Desktop shortcut.
+    * Clean uninstaller configured with `UninstallDisplayName` and registry entries that cleans temporary logs and caches while strictly preserving user-recovered files in destination folders.
+  * Software Bill of Materials & Licensing System:
+    * Machine-readable SPDX 2.3 Software Bill of Materials (`docs/SBOM.json`) listing all direct runtime and dev dependencies, versions, purls, suppliers, and licenses.
+    * Comprehensive third-party license inventory (`docs/LICENSES.md`) explaining rationale, licenses (LGPLv3, MIT, BSD-3-Clause, PSF-2.0, MPL-2.0), and copyleft terms.
+    * Full legal notices and license texts for Qt/PySide6, Python, PyInstaller, and libraries (`THIRD_PARTY_NOTICES.md`).
+    * Application license status documented with placeholder `LICENSE` marked "Owner to decide" and recorded in **ADR 019** in `docs/DECISIONS.md`.
+    * Product name trademark collision search for "RecoverX" conducted and recorded in **ADR 019**.
+  * Release Verification & Security:
+    * Release checksum generator (`packaging/generate_checksums.py`) creating `dist/SHA256SUMS.txt` with SHA-256 digests of all binaries, DLLs, and portable zip archive (`dist/recoverx-1.0.0-windows-x64.zip`).
+    * Windows Authenticode code signing guide (`packaging/SIGNING.md`) documenting `signtool.exe`, timestamp servers, and SmartScreen reputation management.
+  * Clean-Machine Smoke Test Suite (`scripts/smoke_test_clean_machine.py`, `scripts/smoke_test_clean_machine.ps1`):
+    * Automated test suite executing on Windows 10/11 x64 against either the Python environment or the compiled binary (`dist/recoverx/recoverx.exe`).
+    * Asserts `--version` and `--help` subcommand listings.
+    * Asserts out-of-process preview sandbox worker execution with valid 1x1 PNG bytes.
+    * Asserts destination safety invariant: blocks recovery targeting source directory or containing source image.
+    * Asserts end-to-end carving and recovery on synthetic media.
+    * Verified 100% PASS on both Python runtime and packaged binary (`dist/recoverx/recoverx.exe`).
+  * Complete Documentation Suite (Section 19):
+    * `README.md`: Badges, overview, core safety rules, quick start, documentation index, build steps.
+    * `ARCHITECTURE.md`: Layer responsibilities, data flow, threading model, out-of-process preview sandbox, named pipe helper, safety invariants.
+    * `SECURITY.md`: Threat model, untrusted inputs, preview isolation, elevation boundary, zero-network invariant, vulnerability disclosure policy.
+    * `TESTING.md`: Test suite structure, execution commands, property-based fuzzing, synthetic fixtures, hardware test guidelines.
+    * `BUILDING.md`: Prerequisites, environment setup, static checks, PyInstaller build, Inno Setup compilation, Authenticode signing.
+    * `USER_GUIDE.md`: Step-by-step user walkthrough, CLI reference, troubleshooting FAQ.
+    * `RECOVERY_LIMITATIONS.md`: Capabilities matrix, logical deletion vs overwrite, SSD TRIM, fragmentation, encryption, 5-step safety checklist.
+    * `CHANGELOG.md`: Full version history covering M1 through M13.
+    * `RELEASE_NOTES.md`: v1.0.0 release notes with executive summary, system requirements, and verification checksums.
+* **Verification Checks (Real Output):**
+  * `ruff check .`: Passed (All checks passed).
+  * `ruff format --check .`: Passed.
+  * `mypy src tests`: Passed (Success: no issues found in strict mode).
+  * `pytest`: Passed (303 passed, 2 skipped in 31.28s).
+  * `python scripts/smoke_test_clean_machine.py --exe dist/recoverx/recoverx.exe`: Passed (5/5 checks passed).
+* **Scope Boundaries:**
+  * Completed: All milestones M1 through M13 from `MILESTONES.md`. Full specification from `MASTER_PROMPT.md` achieved.
+  * Partial: None.
+  * Not implemented: None.
+* **Blockers:**
+  * None. Release v1.0.0 ready.
+
 
 
 

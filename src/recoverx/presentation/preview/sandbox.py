@@ -56,13 +56,21 @@ class PreviewSandbox:
         ext_clean = extension.lower().lstrip(".")
         limited_data = data[:MAX_PREVIEW_INPUT_BYTES]
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "recoverx.presentation.preview.worker",
-            f"--ext={ext_clean}",
-            f"--max-dim={max_dim}",
-        ]
+        if getattr(sys, "frozen", False):
+            cmd = [
+                sys.executable,
+                "preview-worker",
+                f"--ext={ext_clean}",
+                f"--max-dim={max_dim}",
+            ]
+        else:
+            cmd = [
+                sys.executable,
+                "-m",
+                "recoverx.presentation.preview.worker",
+                f"--ext={ext_clean}",
+                f"--max-dim={max_dim}",
+            ]
 
         try:
             proc = subprocess.run(

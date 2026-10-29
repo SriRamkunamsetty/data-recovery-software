@@ -294,7 +294,12 @@ def launch_elevated_helper(pipe_name: str) -> bool:
 
     try:
         shell32 = ctypes.windll.shell32
-        args = f"-m recoverx.infrastructure.storage.win32.helper.service --pipe-name={pipe_name}"
+        if getattr(sys, "frozen", False):
+            args = f"helper --pipe-name={pipe_name}"
+        else:
+            args = (
+                f"-m recoverx.infrastructure.storage.win32.helper.service --pipe-name={pipe_name}"
+            )
         sw_hide = 0
         ret = shell32.ShellExecuteW(
             None,

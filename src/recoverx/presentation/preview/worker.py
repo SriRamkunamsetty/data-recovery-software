@@ -276,11 +276,12 @@ def preview_zip(data: bytes, ext: str) -> dict[str, Any]:
         }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main worker entry point invoked as an isolated subprocess."""
     ext = "bin"
     max_dim = MAX_IMAGE_DIM
-    for arg in sys.argv[1:]:
+    args_list = argv if argv is not None else sys.argv[1:]
+    for arg in args_list:
         if arg.startswith("--ext="):
             ext = arg.split("=", 1)[1].lower().lstrip(".")
         elif arg.startswith("--max-dim="):

@@ -175,9 +175,20 @@ def _handle_recover(args: argparse.Namespace) -> int:
     elif args.collision_policy == "never_overwrite":
         policy = CollisionPolicy.OVERWRITE_NEVER
 
-    # Step 1: Scan image for candidates (metadata first, carving optional)
-    # Step 2: Initialize recovery service with resolver
+    # Step 1: Pre-validate destination directory separation before reading or scanning
     resolver = FakeVolumeIdentityResolver()
+    from recoverx.services.destination_validator import validate_destination_directory
+
+    try:
+        validate_destination_directory(
+            destination=dest_dir,
+            source_device=reader,
+            resolver=resolver,
+        )
+    except Exception as e:
+        sys.stderr.write(f"Destination safety error: {e}\n")
+        return 1
+
     service = RecoveryService(resolver=resolver)
 
     def progress_callback(
@@ -605,6 +616,17 @@ def main(argv: list[str] | None = None) -> int:
 
     subparsers.add_parser("gui", help="Launch the RecoverX desktop graphical user interface")
 
+    # Subcommand: preview-worker (used by out-of-process preview sandbox)
+    worker_parser = subparsers.add_parser("preview-worker", help=argparse.SUPPRESS)
+    worker_parser.add_argument("--ext", default="bin", help="File extension")
+    worker_parser.add_argument("--max-dim", type=int, default=4096, help="Max image dimension")
+
+    # Subcommand: helper (used by elevated named pipe helper service)
+    helper_parser = subparsers.add_parser("helper", help=argparse.SUPPRESS)
+    helper_parser.add_argument(
+        "--pipe-name", default="recoverx_read_helper_default", help="Named pipe name"
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "scan":
@@ -619,6 +641,31 @@ def main(argv: list[str] | None = None) -> int:
         from recoverx.presentation.app import main as gui_main
 
         return gui_main()
+    if args.command == "preview-worker":
+        from recoverx.presentation.preview.worker import main as worker_main
+
+        worker_args = [f"--ext={args.ext}", f"--max-dim={args.max_dim}"]
+        return worker_main(worker_args)
+    if args.command == "helper":
+        from recoverx.infrastructure.storage.win32.helper.service import main as helper_main
+
+        helper_main()
+        return 0
+
+    if args.command is None:
+        if argv is not None:
+            parser.print_help()
+            return 0
+        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            parser.print_help()
+            return 0
+        try:
+            from recoverx.presentation.app import main as gui_main
+
+            return gui_main()
+        except Exception:
+            parser.print_help()
+            return 0
 
     parser.print_help()
     return 0

@@ -4,6 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from recoverx.config import AppConfig
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def create_application(
     db_path: Path | None = None,
-    theme: str = "light",
+    theme: str = "dark",
     resolver: VolumeIdentityResolver | None = None,
 ) -> tuple[QApplication, MainWindow]:
     """Initialize and construct the RecoverX desktop application and services."""
@@ -54,6 +55,7 @@ def create_application(
         app.setApplicationName("RecoverX")
         app.setOrganizationName("RecoverX Forensic Data Recovery")
 
+    app.setFont(QFont("Segoe UI", 9))
     apply_theme(app, theme)
 
     window = MainWindow(

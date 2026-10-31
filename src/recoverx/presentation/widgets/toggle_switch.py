@@ -49,9 +49,9 @@ class ToggleSwitch(QAbstractButton):
         height = self.height()
 
         # Track colors
-        track_color = QColor("#2563eb") if self.isChecked() else QColor("#334155")
+        track_color = QColor("#2563eb") if self.isChecked() else QColor("#cbd5e1")
         if not self.isEnabled():
-            track_color = QColor("#1e293b")
+            track_color = QColor("#e2e8f0")
 
         # Draw rounded track
         painter.setPen(Qt.PenStyle.NoPen)

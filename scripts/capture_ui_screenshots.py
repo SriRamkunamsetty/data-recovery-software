@@ -12,6 +12,7 @@ if "QT_QPA_PLATFORM" not in os.environ:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from recoverx.domain.candidate import RecoveryCandidate
@@ -34,6 +35,7 @@ from tests.fixtures.sample_files import create_minimal_png
 def capture_screenshots(output_dir: Path) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setFont(QFont("Arial", 9))
 
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp_path = Path(tmp_str)
@@ -86,18 +88,17 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
 
         # 4. Scan Progress (Simulated active scan)
         win._navigate_to(3)
-        win.progress_page.reset(total_bytes=1024 * 1024 * 64)
-        win.progress_page.update_progress(
+        win.scan_progress_page.reset()
+        win.scan_progress_page.update_progress(
             ScanProgress(
+                phase="Carving: Scanning clusters for file signatures...",
                 bytes_scanned=1024 * 1024 * 42,
                 total_bytes=1024 * 1024 * 64,
+                elapsed_seconds=4.2,
                 candidates_found=18,
                 bad_sectors_found=3,
-                current_offset=1024 * 1024 * 42,
-                elapsed_seconds=4.2,
-                throughput_bytes_per_sec=1024 * 1024 * 10,
-                eta_seconds=2.2,
-                current_phase="Carving: Scanning clusters for file signatures...",
+                current_sector=86016,
+                estimated_remaining_seconds=2.2,
             )
         )
         save_window("04_scan_progress")
@@ -166,29 +167,16 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
                 notes="Clusters reallocated in allocation bitmap; marked overwritten",
             ),
         ]
-        win.results_page.populate_candidates(cands)
+        win.results_page.set_candidates(cands)
         save_window("05_recovery_results")
 
         # 6. Reports Page
         win._navigate_to(5)
-        # Create a session in session_service and populate report
-        from recoverx.domain.device import DeviceIdentity
-
-        dev_id = DeviceIdentity(
-            vendor="SanDisk",
-            product="Ultra USB 3.0",
-            serial="4C53000123456789",
-            capacity_bytes=31914983424,
-            logical_sector_size=512,
-            physical_sector_size=512,
-            disk_identifier="DISK-2-SANDISK",
-            sector0_hash="8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
-        )
         sess = session_service.create_session(
-            source_path=r"\\.\PhysicalDrive2 (SanDisk Ultra 32GB)",
-            source_identity=dev_id,
-            triage_status=DeviceTriageStatus.SUPPORTED_FILESYSTEM,
-            triage_notes="Intact FAT32/exFAT filesystems identified with recoverable deleted files.",
+            source_path=str(sample_img),
+            source_device=win.device_page.current_reader,
+            name="SanDisk Ultra USB 3.0",
+            notes="Intact FAT32/exFAT filesystems identified with recoverable deleted files.",
         )
         session_service.candidate_repo.save_batch(sess.session_id, cands)
         win.report_page.load_session(sess.session_id)
@@ -197,6 +185,7 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
         # 7. Settings Page (Dark Mode)
         apply_theme(app, "dark")
         win._navigate_to(6)
+        save_window("07_application_settings")
         save_window("07_settings_dark")
 
         # 8. Settings Page (Light Mode)
@@ -204,15 +193,16 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
         win._navigate_to(6)
         save_window("08_settings_light")
 
+        # Restore dark mode
+        apply_theme(app, "dark")
+        win._navigate_to(6)
+
         # 9. Preview Dialog
-        preview_dlg = FilePreviewDialog(parent=win)
-        png_data = create_minimal_png()
-        preview_dlg.show_preview(
-            candidate_id="cand-001",
-            filename="DCIM_0042.PNG",
-            extension="png",
-            file_size_bytes=len(png_data),
-            data=png_data,
+        assert win.device_page.current_reader is not None
+        preview_dlg = FilePreviewDialog(
+            candidate=cands[0],
+            device=win.device_page.current_reader,
+            parent=win,
         )
         preview_dlg.resize(750, 600)
         preview_dlg.show()
@@ -223,7 +213,9 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
         print(f"Captured {dlg_dest.name}")
         captured_files.append(dlg_dest)
         preview_dlg.close()
-        win.device_page.current_reader.close()
+        if win.device_page.current_reader is not None:
+            win.device_page.current_reader.close()
+            win.device_page.current_reader = None
         win.close()
         db_mgr.close()
         app.processEvents()

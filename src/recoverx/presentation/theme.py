@@ -6,35 +6,53 @@ LIGHT_THEME_QSS = """
 QMainWindow, QDialog, QWidget {
     background-color: #f8fafc;
     color: #0f172a;
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: "Segoe UI", Arial, sans-serif;
     font-size: 13px;
 }
 
 /* Sidebar navigation */
 QFrame#SidebarContainer {
-    background-color: #0f172a;
+    background-color: #070d19;
     border-right: 1px solid #1e293b;
 }
 QListWidget#SidebarList {
     background-color: transparent;
     color: #94a3b8;
     border: none;
+    outline: none;
     font-size: 13px;
     font-weight: 500;
 }
 QListWidget#SidebarList::item {
-    padding: 10px 14px;
-    border-radius: 6px;
-    margin: 2px 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin: 3px 12px;
+    border: none;
+    outline: none;
 }
 QListWidget#SidebarList::item:hover {
     background-color: #1e293b;
     color: #f8fafc;
+    border: none;
+    outline: none;
 }
 QListWidget#SidebarList::item:selected {
-    background-color: #2563eb;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #3b82f6);
     color: #ffffff;
     font-weight: 600;
+    border: none;
+    outline: none;
+}
+QListWidget#SidebarList::item:selected:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #3b82f6);
+    color: #ffffff;
+    border: none;
+    outline: none;
+}
+QListWidget#SidebarList::item:focus,
+QListWidget#SidebarList::item:selected:focus {
+    border: none;
+    outline: none;
 }
 
 /* Cards & containers */
@@ -203,23 +221,52 @@ QHeaderView::section {
 
 /* Tab widget */
 QTabWidget::pane {
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background-color: #ffffff;
+    border: none;
+    background: transparent;
+    margin-top: 8px;
 }
 QTabBar::tab {
-    background-color: #f1f5f9;
-    color: #64748b;
-    padding: 8px 16px;
-    margin-right: 4px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    background-color: #e2e8f0;
+    color: #475569;
+    padding: 8px 18px;
+    margin-right: 8px;
+    border-radius: 8px;
     font-weight: 500;
 }
 QTabBar::tab:selected {
-    background-color: #ffffff;
-    color: #2563eb;
+    background-color: #2563eb;
+    color: #ffffff;
     font-weight: 600;
+}
+
+/* Settings White Card */
+QFrame.SettingsWhiteCard {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 20px;
+}
+QFrame.SettingsWhiteCard QLabel {
+    color: #0f172a;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    min-height: 24px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
 }
 
 /* Progress bar */
@@ -274,35 +321,53 @@ DARK_THEME_QSS = """
 QMainWindow, QDialog, QWidget {
     background-color: #0b1120;
     color: #f8fafc;
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: "Segoe UI", Arial, sans-serif;
     font-size: 13px;
 }
 
 /* Sidebar navigation */
 QFrame#SidebarContainer {
-    background-color: #0f172a;
+    background-color: #070d19;
     border-right: 1px solid #1e293b;
 }
 QListWidget#SidebarList {
     background-color: transparent;
     color: #94a3b8;
     border: none;
+    outline: none;
     font-size: 13px;
     font-weight: 500;
 }
 QListWidget#SidebarList::item {
-    padding: 10px 14px;
-    border-radius: 6px;
-    margin: 2px 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin: 3px 12px;
+    border: none;
+    outline: none;
 }
 QListWidget#SidebarList::item:hover {
     background-color: #1e293b;
     color: #f8fafc;
+    border: none;
+    outline: none;
 }
 QListWidget#SidebarList::item:selected {
-    background-color: #2563eb;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #3b82f6);
     color: #ffffff;
     font-weight: 600;
+    border: none;
+    outline: none;
+}
+QListWidget#SidebarList::item:selected:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #3b82f6);
+    color: #ffffff;
+    border: none;
+    outline: none;
+}
+QListWidget#SidebarList::item:focus,
+QListWidget#SidebarList::item:selected:focus {
+    border: none;
+    outline: none;
 }
 
 /* Cards & containers */
@@ -471,23 +536,58 @@ QHeaderView::section {
 
 /* Tab widget */
 QTabWidget::pane {
-    border: 1px solid #334155;
-    border-radius: 8px;
-    background-color: #0f172a;
+    border: none;
+    background: transparent;
+    margin-top: 8px;
 }
 QTabBar::tab {
-    background-color: #1e293b;
+    background-color: #111c35;
     color: #94a3b8;
-    padding: 8px 16px;
-    margin-right: 4px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    padding: 8px 18px;
+    margin-right: 8px;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
     font-weight: 500;
 }
+QTabBar::tab:hover {
+    background-color: #1e293b;
+    color: #f8fafc;
+}
 QTabBar::tab:selected {
-    background-color: #2563eb;
+    background-color: #1d4ed8;
     color: #ffffff;
     font-weight: 600;
+    border: 1px solid #3b82f6;
+}
+
+/* Settings White Card */
+QFrame.SettingsWhiteCard {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 20px;
+}
+QFrame.SettingsWhiteCard QLabel {
+    color: #0f172a;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #334155;
+    min-height: 24px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #475569;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
 }
 
 /* Progress bar */

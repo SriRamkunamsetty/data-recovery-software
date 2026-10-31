@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressDialog,
     QStackedWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -42,6 +45,15 @@ from recoverx.services.report_service import ReportService
 from recoverx.services.session_service import SessionService
 
 logger = logging.getLogger(__name__)
+
+
+class SidebarItemDelegate(QStyledItemDelegate):
+    """Custom item delegate suppressing Qt default dotted focus rectangle around sidebar items."""
+
+    def paint(self, painter: Any, option: QStyleOptionViewItem, index: Any) -> None:
+        opt = QStyleOptionViewItem(option)
+        opt.state &= ~QStyle.StateFlag.State_HasFocus
+        super().paint(painter, opt, index)
 
 
 class MainWindow(QMainWindow):
@@ -151,6 +163,8 @@ class MainWindow(QMainWindow):
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("SidebarList")
         self.sidebar.setAccessibleName("Sidebar Navigation List")
+        self.sidebar.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.sidebar.setItemDelegate(SidebarItemDelegate(self.sidebar))
 
         self._add_sidebar_item("🏠  Dashboard", 0)
         self._add_sidebar_item("🖴  Select Media", 1)

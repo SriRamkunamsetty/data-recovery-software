@@ -3,11 +3,16 @@
 from PySide6.QtWidgets import QApplication
 
 LIGHT_THEME_QSS = """
-QMainWindow, QDialog, QWidget {
+QMainWindow, QDialog {
     background-color: #f8fafc;
+}
+QWidget {
     color: #0f172a;
     font-family: "Segoe UI", Arial, sans-serif;
     font-size: 13px;
+}
+QLabel {
+    background-color: transparent;
 }
 
 /* Sidebar navigation */
@@ -318,11 +323,16 @@ QFrame.DemoBanner {
 """
 
 DARK_THEME_QSS = """
-QMainWindow, QDialog, QWidget {
+QMainWindow, QDialog {
     background-color: #0b1120;
+}
+QWidget {
     color: #f8fafc;
     font-family: "Segoe UI", Arial, sans-serif;
     font-size: 13px;
+}
+QLabel {
+    background-color: transparent;
 }
 
 /* Sidebar navigation */

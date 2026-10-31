@@ -12,7 +12,7 @@ if "QT_QPA_PLATFORM" not in os.environ:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
 from recoverx.domain.candidate import RecoveryCandidate
@@ -35,7 +35,21 @@ from tests.fixtures.sample_files import create_minimal_png
 def capture_screenshots(output_dir: Path) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setFont(QFont("Arial", 9))
+
+    # Preload Windows TrueType fonts so offscreen platform renders real text
+    for fp in [
+        r"C:\Windows\Fonts\segoeui.ttf",
+        r"C:\Windows\Fonts\segoeuib.ttf",
+        r"C:\Windows\Fonts\segoeuii.ttf",
+        r"C:\Windows\Fonts\segoeuiz.ttf",
+        r"C:\Windows\Fonts\seguiemj.ttf",
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\arialbd.ttf",
+    ]:
+        if os.path.exists(fp):
+            QFontDatabase.addApplicationFont(fp)
+
+    app.setFont(QFont("Segoe UI", 10))
 
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp_path = Path(tmp_str)
@@ -51,6 +65,7 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
         sample_img = tmp_path / "sample_usb.raw"
         builder.build(sample_img)
 
+        apply_theme(app, "dark")
         win = MainWindow(
             session_service=session_service,
             triage_service=triage_service,
@@ -68,6 +83,9 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
             pix = win.grab()
             dest = output_dir / f"{name}.png"
             pix.save(str(dest), "PNG")
+            web_dest = Path("website/assets") / f"{name}.png"
+            if web_dest.parent.exists():
+                pix.save(str(web_dest), "PNG")
             print(f"Captured {dest.name}")
             captured_files.append(dest)
             return dest
@@ -213,11 +231,17 @@ def capture_screenshots(output_dir: Path) -> list[Path]:
         print(f"Captured {dlg_dest.name}")
         captured_files.append(dlg_dest)
         preview_dlg.close()
-        if win.device_page.current_reader is not None:
-            win.device_page.current_reader.close()
-            win.device_page.current_reader = None
+        try:
+            if win.device_page.current_reader is not None:
+                win.device_page.current_reader.close()
+                win.device_page.current_reader = None
+        except Exception:
+            pass
         win.close()
-        db_mgr.close()
+        try:
+            db_mgr.close()
+        except Exception:
+            pass
         app.processEvents()
 
     return captured_files

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         # Sidebar Container with Logo Header & Status Footer
         sidebar_frame = QFrame()
         sidebar_frame.setObjectName("SidebarContainer")
-        sidebar_frame.setFixedWidth(230)
+        sidebar_frame.setFixedWidth(240)
         sidebar_layout = QVBoxLayout(sidebar_frame)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(0)
@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
         title_layout.addWidget(app_title)
 
         app_subtitle = QLabel("Forensic Data Recovery")
-        app_subtitle.setStyleSheet("font-size: 10px; color: #94a3b8;")
+        app_subtitle.setStyleSheet("font-size: 10px; color: #94a3b8; font-weight: 500;")
         title_layout.addWidget(app_subtitle)
         logo_layout.addLayout(title_layout)
         logo_layout.addStretch(1)

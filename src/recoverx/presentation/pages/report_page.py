@@ -106,7 +106,7 @@ class RecoveryReportPage(QWidget):
         overview_layout.setSpacing(10)
 
         ov_title = QLabel("<strong>Session Overview</strong>")
-        ov_title.setStyleSheet("font-size: 14px; color: #f8fafc;")
+        ov_title.setStyleSheet("font-size: 14px; color: #f8fafc; background: transparent;")
         overview_layout.addWidget(ov_title)
 
         grid = QGridLayout()
@@ -115,7 +115,7 @@ class RecoveryReportPage(QWidget):
         # Col 1
         grid.addWidget(QLabel("<strong>Session ID:</strong>"), 0, 0)
         self.session_lbl = QLabel("-")
-        self.session_lbl.setStyleSheet("font-family: monospace; color: #60a5fa;")
+        self.session_lbl.setStyleSheet("font-family: monospace; color: #60a5fa; background: transparent;")
         self.session_lbl.setAccessibleName("Report Session ID")
         grid.addWidget(self.session_lbl, 0, 1)
 
@@ -178,7 +178,7 @@ class RecoveryReportPage(QWidget):
         chart_layout.setSpacing(10)
 
         chart_title = QLabel("<strong>File Type Distribution</strong>")
-        chart_title.setStyleSheet("font-size: 14px; color: #f8fafc;")
+        chart_title.setStyleSheet("font-size: 14px; color: #f8fafc; background: transparent;")
         chart_layout.addWidget(chart_title)
 
         donut_row = QHBoxLayout()
@@ -208,7 +208,7 @@ class RecoveryReportPage(QWidget):
         integ_layout.setSpacing(8)
 
         integ_title = QLabel("<strong>Forensic Integrity & Audit Verification</strong>")
-        integ_title.setStyleSheet("font-size: 14px; color: #f8fafc;")
+        integ_title.setStyleSheet("font-size: 14px; color: #f8fafc; background: transparent;")
         integ_layout.addWidget(integ_title)
 
         checks = [
@@ -223,7 +223,7 @@ class RecoveryReportPage(QWidget):
         for check_title, check_desc in checks:
             row = QHBoxLayout()
             lbl_title = QLabel(f"<strong>{check_title}</strong>")
-            lbl_title.setStyleSheet("color: #34d399; font-size: 12px;")
+            lbl_title.setStyleSheet("color: #34d399; font-size: 12px; background: transparent;")
             lbl_desc = QLabel(check_desc)
             lbl_desc.setProperty("class", "MutedText")
             lbl_desc.setWordWrap(True)
@@ -250,7 +250,9 @@ class RecoveryReportPage(QWidget):
                 sub = l_item.takeAt(0)
                 if sub is not None:
                     if sub.widget():
-                        sub.widget().deleteLater()
+                        w = sub.widget()
+                        w.setParent(None)
+                        w.deleteLater()
                     elif sub.layout():
                         _clear(sub.layout())
 
@@ -269,9 +271,9 @@ class RecoveryReportPage(QWidget):
             pct = (count / total) * 100.0
             row = QHBoxLayout()
             dot = QLabel("■")
-            dot.setStyleSheet(f"color: {colors.get(cat, '#94a3b8')}; font-size: 14px;")
+            dot.setStyleSheet(f"color: {colors.get(cat, '#94a3b8')}; font-size: 14px; background: transparent;")
             lbl = QLabel(f"<strong>{cat}:</strong> {count:,} ({pct:.1f}%)")
-            lbl.setStyleSheet("font-size: 12px; color: #cbd5e1;")
+            lbl.setStyleSheet("font-size: 12px; color: #cbd5e1; background: transparent;")
             row.addWidget(dot)
             row.addWidget(lbl)
             row.addStretch(1)

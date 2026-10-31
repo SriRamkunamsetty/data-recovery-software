@@ -279,11 +279,11 @@ class ScanProgressPage(QWidget):
         row_layout.addWidget(ic)
 
         nm = QLabel(f"<strong>{name}</strong>")
-        nm.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        nm.setStyleSheet("color: #cbd5e1; font-size: 12px; background: transparent;")
         row_layout.addWidget(nm)
         row_layout.addStretch(1)
 
-        counter_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        counter_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
         row_layout.addWidget(counter_lbl)
         return row
 

@@ -342,7 +342,7 @@ class DashboardPage(QWidget):
         top_row.addWidget(icon_lbl)
 
         name_lbl = QLabel(f"<strong>{name}</strong>")
-        name_lbl.setStyleSheet("font-size: 13px; color: #f8fafc;")
+        name_lbl.setStyleSheet("font-size: 13px; color: #f8fafc; background: transparent;")
         top_row.addWidget(name_lbl)
         top_row.addStretch(1)
 

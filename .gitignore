@@ -51,3 +51,8 @@ tmp/
 *.spec
 website/downloads/
 packaging/payload.zip
+
+.temp/
+ui_test.db
+website/assets/test_*
+website/assets/debug_*

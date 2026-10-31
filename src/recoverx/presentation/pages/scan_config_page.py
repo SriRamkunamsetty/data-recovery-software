@@ -77,7 +77,7 @@ class ScanConfigurationPage(QWidget):
 
         # 2. Scan Mode Cards (Screenshot 3: Quick Scan, Deep Scan, Full Scan)
         mode_header = QLabel("<strong>Scan Mode & Scope</strong>")
-        mode_header.setStyleSheet("font-size: 14px; color: #f8fafc;")
+        mode_header.setStyleSheet("font-size: 14px; color: #f8fafc; background: transparent;")
         layout.addWidget(mode_header)
 
         self.mode_cards_layout = QHBoxLayout()
@@ -147,7 +147,7 @@ class ScanConfigurationPage(QWidget):
 
         # 3. File Types to Search (Deep Scan) Section
         types_header = QLabel("<strong>File Types to Search (Deep Scan)</strong>")
-        types_header.setStyleSheet("font-size: 14px; color: #f8fafc; margin-top: 6px;")
+        types_header.setStyleSheet("font-size: 14px; color: #f8fafc; margin-top: 6px; background: transparent;")
         layout.addWidget(types_header)
 
         types_grid = QGridLayout()
@@ -262,7 +262,7 @@ class ScanConfigurationPage(QWidget):
         header.addWidget(icon_lbl)
 
         title_lbl = QLabel(f"<strong>{title}</strong>")
-        title_lbl.setStyleSheet("font-size: 15px; color: #f8fafc;")
+        title_lbl.setStyleSheet("font-size: 15px; color: #f8fafc; background: transparent;")
         header.addWidget(title_lbl)
         header.addStretch(1)
 
@@ -283,7 +283,7 @@ class ScanConfigurationPage(QWidget):
         bullets_layout.setSpacing(4)
         for b in bullets:
             b_lbl = QLabel(b)
-            b_lbl.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+            b_lbl.setStyleSheet("color: #cbd5e1; font-size: 12px; background: transparent;")
             bullets_layout.addWidget(b_lbl)
         card_layout.addLayout(bullets_layout)
 
@@ -320,14 +320,14 @@ class ScanConfigurationPage(QWidget):
         top.addWidget(ic)
 
         tl = QLabel(f"<strong>{title}</strong>")
-        tl.setStyleSheet("color: #f8fafc; font-size: 13px;")
+        tl.setStyleSheet("color: #f8fafc; font-size: 13px; background: transparent;")
         top.addWidget(tl)
         top.addStretch(1)
         inner.addLayout(top)
 
         sub_lbl = QLabel(sub)
         sub_lbl.setProperty("class", "MutedText")
-        sub_lbl.setStyleSheet("color: #64748b; font-size: 10px;")
+        sub_lbl.setStyleSheet("color: #64748b; font-size: 10px; background: transparent;")
         sub_lbl.setWordWrap(True)
         inner.addWidget(sub_lbl)
 

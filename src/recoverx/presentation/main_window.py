@@ -109,22 +109,87 @@ class MainWindow(QMainWindow):
         body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.setSpacing(0)
 
-        # Sidebar navigation
+        # Sidebar Container with Logo Header & Status Footer
+        sidebar_frame = QFrame()
+        sidebar_frame.setObjectName("SidebarContainer")
+        sidebar_frame.setFixedWidth(230)
+        sidebar_layout = QVBoxLayout(sidebar_frame)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
+
+        # 1. Top Logo Header
+        logo_container = QFrame()
+        logo_container.setStyleSheet(
+            "background-color: transparent; border-bottom: 1px solid #1e293b; padding: 18px 16px;"
+        )
+        logo_layout = QHBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(12)
+
+        logo_icon = QLabel("🛡")
+        logo_icon.setStyleSheet(
+            "font-size: 22px; background: #1e293b; border: 1px solid #334155; "
+            "border-radius: 8px; padding: 6px;"
+        )
+        logo_layout.addWidget(logo_icon)
+
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(2)
+        app_title = QLabel("<strong>RecoverX</strong>")
+        app_title.setStyleSheet("font-size: 16px; color: #f8fafc;")
+        title_layout.addWidget(app_title)
+
+        app_subtitle = QLabel("Forensic Data Recovery")
+        app_subtitle.setStyleSheet("font-size: 10px; color: #94a3b8;")
+        title_layout.addWidget(app_subtitle)
+        logo_layout.addLayout(title_layout)
+        logo_layout.addStretch(1)
+
+        sidebar_layout.addWidget(logo_container)
+
+        # 2. Navigation List
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("SidebarList")
         self.sidebar.setAccessibleName("Sidebar Navigation List")
-        self.sidebar.setFixedWidth(220)
 
-        self._add_sidebar_item("Dashboard", 0)
-        self._add_sidebar_item("Select Media", 1)
-        self._add_sidebar_item("Scan Options", 2)
-        self._add_sidebar_item("Scan Progress", 3)
-        self._add_sidebar_item("Recovery Results", 4)
-        self._add_sidebar_item("Forensic Report", 5)
-        self._add_sidebar_item("Settings", 6)
+        self._add_sidebar_item("🏠  Dashboard", 0)
+        self._add_sidebar_item("🖴  Select Media", 1)
+        self._add_sidebar_item("⚙  Scan Options", 2)
+        self._add_sidebar_item("⏳  Scan Progress", 3)
+        self._add_sidebar_item("📁  Recovery Results", 4)
+        self._add_sidebar_item("📊  Forensic Report", 5)
+        self._add_sidebar_item("🔧  Settings", 6)
 
         self.sidebar.currentRowChanged.connect(self._on_sidebar_row_changed)
-        body_layout.addWidget(self.sidebar)
+        sidebar_layout.addWidget(self.sidebar, stretch=1)
+
+        # 3. Bottom Status Footer
+        footer_container = QFrame()
+        footer_container.setStyleSheet(
+            "background-color: #0b1120; border-top: 1px solid #1e293b; padding: 14px 16px;"
+        )
+        footer_layout = QVBoxLayout(footer_container)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setSpacing(4)
+
+        ver_lbl = QLabel("v0.1.0 • Forensic x64")
+        ver_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+        footer_layout.addWidget(ver_lbl)
+
+        status_row = QHBoxLayout()
+        status_row.setSpacing(6)
+        dot_lbl = QLabel("●")
+        dot_lbl.setStyleSheet("color: #34d399; font-size: 10px;")
+        status_row.addWidget(dot_lbl)
+
+        engine_lbl = QLabel("Engine Ready")
+        engine_lbl.setStyleSheet("color: #34d399; font-size: 12px; font-weight: 600;")
+        status_row.addWidget(engine_lbl)
+        status_row.addStretch(1)
+        footer_layout.addLayout(status_row)
+
+        sidebar_layout.addWidget(footer_container)
+        body_layout.addWidget(sidebar_frame)
 
         # Stacked Pages
         self.stack = QStackedWidget()
@@ -173,6 +238,8 @@ class MainWindow(QMainWindow):
         # Dashboard page
         self.dashboard_page.start_recovery_requested.connect(lambda: self._navigate_to(1))
         self.dashboard_page.resume_session_requested.connect(self._on_resume_session)
+        self.dashboard_page.create_image_requested.connect(lambda: self._navigate_to(1))
+        self.dashboard_page.view_reports_requested.connect(lambda: self._navigate_to(5))
 
         # Device selection page
         self.device_page.device_selected.connect(self._on_device_selected)

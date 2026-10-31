@@ -1,4 +1,4 @@
-"""Candidate recovery results page with filtering, selection, and preview actions."""
+"""Candidate recovery results page with filtering, category tree, selection, and preview actions."""
 
 import logging
 from typing import Any
@@ -12,8 +12,11 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -31,17 +34,12 @@ def _format_size(size_bytes: int) -> str:
     for unit in ["KiB", "MiB", "GiB", "TiB"]:
         size_float /= 1024.0
         if size_float < 1024.0:
-            return f"{size_float:.2f} {unit}"
-    return f"{size_float:.2f} PiB"
+            return f"{size_float:.1f} {unit}"
+    return f"{size_float:.1f} PiB"
 
 
 class RecoveryResultsPage(QWidget):
-    """Results page displaying discovered candidates with search, filtering, and recovery.
-
-    Rule 7 of CLAUDE.md:
-    Accurate factual candidate statuses only.
-    No percentage recovery probability.
-    """
+    """Results page displaying discovered candidates with search, filtering, and recovery."""
 
     preview_requested = Signal(object)  # RecoveryCandidate
     recovery_requested = Signal(list)  # list[str] (candidate_ids)
@@ -51,6 +49,7 @@ class RecoveryResultsPage(QWidget):
         super().__init__(parent)
         self.all_candidates: list[RecoveryCandidate] = []
         self.filtered_candidates: list[RecoveryCandidate] = []
+        self._selected_category_ext: str | None = None
 
         self.setAccessibleName("Recovery Results Page")
         self.setAccessibleDescription(
@@ -62,33 +61,51 @@ class RecoveryResultsPage(QWidget):
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(14)
 
-        # Title and header
-        title = QLabel("Discovered Recovery Candidates")
+        # 1. Header with Discovered Summary
+        header_layout = QHBoxLayout()
+        header_text = QVBoxLayout()
+        header_text.setSpacing(2)
+
+        title = QLabel("Recovered Files")
         title.setProperty("class", "PageTitle")
         title.setAccessibleName("Recovery Results Page Title")
-        layout.addWidget(title)
+        header_text.addWidget(title)
 
-        # Filter bar
-        filter_card = QFrame()
-        filter_card.setProperty("class", "CardFrame")
-        filter_layout = QHBoxLayout(filter_card)
-        filter_layout.setContentsMargins(12, 10, 12, 10)
+        self.summary_subtitle = QLabel("0 files found (0 B) • Select files to extract and recover")
+        self.summary_subtitle.setProperty("class", "PageSubtitle")
+        header_text.addWidget(self.summary_subtitle)
+        header_layout.addLayout(header_text)
+        header_layout.addStretch(1)
+
+        layout.addLayout(header_layout)
+
+        # 2. Filter Toolbar (Screenshot 5)
+        filter_toolbar = QFrame()
+        filter_toolbar.setProperty("class", "CardFrame")
+        filter_layout = QHBoxLayout(filter_toolbar)
+        filter_layout.setContentsMargins(12, 8, 12, 8)
         filter_layout.setSpacing(12)
 
-        # Search box
+        # Search bar
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search filenames or paths...")
+        self.search_edit.setPlaceholderText("🔍 Search files or paths...")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setAccessibleName("Filename search input")
         self.search_edit.textChanged.connect(self._apply_filters)
         filter_layout.addWidget(self.search_edit, stretch=2)
 
+        # Type filter dropdown
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(
+            ["All Types", "Images", "Documents", "Videos", "Archives", "Others"]
+        )
+        self.type_combo.currentTextChanged.connect(self._apply_filters)
+        filter_layout.addWidget(self.type_combo)
+
         # Status filter dropdown
-        status_label = QLabel("Status:")
-        filter_layout.addWidget(status_label)
         self.status_combo = QComboBox()
         self.status_combo.setAccessibleName("Candidate status filter dropdown")
         self.status_combo.addItems(
@@ -105,9 +122,7 @@ class RecoveryResultsPage(QWidget):
         self.status_combo.currentTextChanged.connect(self._apply_filters)
         filter_layout.addWidget(self.status_combo)
 
-        # Origin filter dropdown
-        origin_label = QLabel("Method:")
-        filter_layout.addWidget(origin_label)
+        # Method filter dropdown
         self.origin_combo = QComboBox()
         self.origin_combo.setAccessibleName("Candidate method filter dropdown")
         self.origin_combo.addItems(
@@ -121,180 +136,290 @@ class RecoveryResultsPage(QWidget):
         self.origin_combo.currentTextChanged.connect(self._apply_filters)
         filter_layout.addWidget(self.origin_combo)
 
-        layout.addWidget(filter_card)
+        layout.addWidget(filter_toolbar)
 
-        # Quick selection bar
-        sel_bar = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        select_all_btn.setAccessibleName("Select All Files Button")
-        select_all_btn.clicked.connect(self._select_all)
-        sel_bar.addWidget(select_all_btn)
+        # 3. Main Split View: Left Tree + Right Table (Screenshot 5)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        deselect_all_btn = QPushButton("Deselect All")
-        deselect_all_btn.setAccessibleName("Deselect All Files Button")
-        deselect_all_btn.clicked.connect(self._deselect_all)
-        sel_bar.addWidget(deselect_all_btn)
+        # Left: Category Tree
+        tree_card = QFrame()
+        tree_card.setProperty("class", "CardFrame")
+        tree_layout = QVBoxLayout(tree_card)
+        tree_layout.setContentsMargins(8, 8, 8, 8)
 
-        select_verified_btn = QPushButton("Select Validated Only")
-        select_verified_btn.setAccessibleName("Select Validated Files Button")
-        select_verified_btn.clicked.connect(self._select_validated_only)
-        sel_bar.addWidget(select_verified_btn)
+        tree_header = QLabel("<strong>File Categories</strong>")
+        tree_header.setStyleSheet("color: #94a3b8; font-size: 12px; margin-bottom: 4px;")
+        tree_layout.addWidget(tree_header)
 
-        sel_bar.addStretch(1)
+        self.category_tree = QTreeWidget()
+        self.category_tree.setHeaderHidden(True)
+        self.category_tree.itemClicked.connect(self._on_tree_item_clicked)
+        tree_layout.addWidget(self.category_tree)
+        splitter.addWidget(tree_card)
 
-        self.selection_summary_lbl = QLabel("0 of 0 files selected (0 B)")
-        self.selection_summary_lbl.setAccessibleName("Selection summary counter")
-        self.selection_summary_lbl.setStyleSheet("color: #64748b; font-weight: 500;")
-        sel_bar.addWidget(self.selection_summary_lbl)
+        # Right: Candidate Files Table
+        table_card = QFrame()
+        table_card.setProperty("class", "CardFrame")
+        table_card_layout = QVBoxLayout(table_card)
+        table_card_layout.setContentsMargins(8, 8, 8, 8)
 
-        layout.addLayout(sel_bar)
+        # Quick selection buttons row inside table card
+        quick_sel_row = QHBoxLayout()
+        sel_all_btn = QPushButton("Select All")
+        sel_all_btn.clicked.connect(self._select_all)
+        quick_sel_row.addWidget(sel_all_btn)
 
-        # Candidate table
+        desel_btn = QPushButton("Deselect All")
+        desel_btn.clicked.connect(self._deselect_all)
+        quick_sel_row.addWidget(desel_btn)
+
+        sel_valid_btn = QPushButton("Select Validated Only")
+        sel_valid_btn.clicked.connect(self._select_validated_only)
+        quick_sel_row.addWidget(sel_valid_btn)
+        quick_sel_row.addStretch(1)
+        table_card_layout.addLayout(quick_sel_row)
+
         self.table = QTableWidget()
         self.table.setAccessibleName("Discovered Candidates Table")
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
-            ["", "Filename / Path", "Size", "Format", "Origin", "Status", "Source Offset"]
+            ["", "Filename", "Path / Origin", "Size", "Type", "Status", "Method"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            5, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            6, QHeaderView.ResizeMode.ResizeToContents
+        )
+
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.itemChanged.connect(self._on_item_changed)
-        self.table.itemDoubleClicked.connect(self._on_table_double_click)
-        self.table.itemSelectionChanged.connect(self._on_selection_changed)
-        layout.addWidget(self.table)
+        self.table.cellDoubleClicked.connect(self._on_row_double_clicked)
+        self.table.itemChanged.connect(self._on_table_item_changed)
+        table_card_layout.addWidget(self.table)
 
-        # Action bar at bottom
-        action_layout = QHBoxLayout()
+        splitter.addWidget(table_card)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 3)
+        layout.addWidget(splitter, stretch=1)
 
-        self.preview_btn = QPushButton("Preview File...")
-        self.preview_btn.setAccessibleName("Preview Selected File Button")
-        self.preview_btn.setEnabled(False)
+        # 4. Bottom Action Bar (Screenshot 5)
+        bottom_bar = QHBoxLayout()
+        self.sel_count_lbl = QLabel("0 files selected (0 B)")
+        self.sel_count_lbl.setStyleSheet("color: #60a5fa; font-weight: 600; font-size: 13px;")
+        bottom_bar.addWidget(self.sel_count_lbl)
+        bottom_bar.addStretch(1)
+
+        self.preview_btn = QPushButton("👁 Preview File...")
+        self.preview_btn.setProperty("class", "SecondaryButton")
         self.preview_btn.clicked.connect(self._on_preview_clicked)
-        action_layout.addWidget(self.preview_btn)
+        bottom_bar.addWidget(self.preview_btn)
 
-        action_layout.addStretch(1)
-
-        self.report_btn = QPushButton("Forensic Report &rarr;")
+        self.report_btn = QPushButton("View Forensic Report →")
+        self.report_btn.setProperty("class", "SecondaryButton")
         self.report_btn.setAccessibleName("View Forensic Report Button")
         self.report_btn.clicked.connect(self.report_requested.emit)
-        action_layout.addWidget(self.report_btn)
+        bottom_bar.addWidget(self.report_btn)
 
-        self.recover_btn = QPushButton("Recover Selected Files...")
+        export_list_btn = QPushButton("Export List...")
+        export_list_btn.setProperty("class", "SecondaryButton")
+        bottom_bar.addWidget(export_list_btn)
+
+        self.recover_btn = QPushButton("Recover Selected Files →")
         self.recover_btn.setProperty("class", "PrimaryButton")
         self.recover_btn.setAccessibleName("Recover Selected Files Button")
-        self.recover_btn.setEnabled(False)
         self.recover_btn.clicked.connect(self._on_recover_clicked)
-        action_layout.addWidget(self.recover_btn)
+        bottom_bar.addWidget(self.recover_btn)
 
-        layout.addLayout(action_layout)
+        layout.addLayout(bottom_bar)
 
     def set_candidates(self, candidates: list[RecoveryCandidate]) -> None:
-        """Populate the table with scanned recovery candidates."""
-        self.all_candidates = list(candidates)
+        """Populate the table and category tree with discovered candidates."""
+        self.all_candidates = candidates
+        total_size = sum(c.size_bytes for c in candidates)
+        self.summary_subtitle.setText(
+            f"{len(candidates):,} files found ({_format_size(total_size)}) • "
+            "Select files to extract and recover"
+        )
+        self._populate_category_tree()
+        self._apply_filters()
+
+    def _populate_category_tree(self) -> None:
+        self.category_tree.clear()
+        all_root = QTreeWidgetItem([f"📁 All Files ({len(self.all_candidates)})"])
+        all_root.setData(0, Qt.ItemDataRole.UserRole, None)
+
+        img_exts = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".svg"}
+        doc_exts = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".txt", ".csv"}
+        vid_exts = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv"}
+        arc_exts = {".zip", ".rar", ".7z", ".tar", ".gz"}
+
+        counts: dict[str, dict[str, int]] = {
+            "Images": {},
+            "Documents": {},
+            "Videos": {},
+            "Archives": {},
+            "Other Files": {},
+        }
+
+        for c in self.all_candidates:
+            ext = c.extension.lower()
+            if ext in img_exts:
+                counts["Images"][ext] = counts["Images"].get(ext, 0) + 1
+            elif ext in doc_exts:
+                counts["Documents"][ext] = counts["Documents"].get(ext, 0) + 1
+            elif ext in vid_exts:
+                counts["Videos"][ext] = counts["Videos"].get(ext, 0) + 1
+            elif ext in arc_exts:
+                counts["Archives"][ext] = counts["Archives"].get(ext, 0) + 1
+            else:
+                counts["Other Files"][ext] = counts["Other Files"].get(ext, 0) + 1
+
+        icons = {
+            "Images": "📷",
+            "Documents": "📄",
+            "Videos": "🎬",
+            "Archives": "📦",
+            "Other Files": "📁",
+        }
+
+        for cat, subcounts in counts.items():
+            tot = sum(subcounts.values())
+            cat_item = QTreeWidgetItem([f"{icons[cat]} {cat} ({tot})"])
+            cat_item.setData(0, Qt.ItemDataRole.UserRole, cat)
+            for ext, cnt in subcounts.items():
+                child = QTreeWidgetItem([f"{ext.upper().lstrip('.')} ({cnt})"])
+                child.setData(0, Qt.ItemDataRole.UserRole, ext)
+                cat_item.addChild(child)
+            all_root.addChild(cat_item)
+
+        self.category_tree.addTopLevelItem(all_root)
+        all_root.setExpanded(True)
+
+    def _on_tree_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        target = item.data(0, Qt.ItemDataRole.UserRole)
+        self._selected_category_ext = target
         self._apply_filters()
 
     def _apply_filters(self) -> None:
         search_text = self.search_edit.text().strip().lower()
-        selected_status = self.status_combo.currentText()
-        selected_origin = self.origin_combo.currentText()
+        status_filter = self.status_combo.currentText()
+        origin_filter = self.origin_combo.currentText()
 
-        self.filtered_candidates = []
-        for cand in self.all_candidates:
-            # Filename filter
+        img_exts = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".svg"}
+        doc_exts = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".txt", ".csv"}
+        vid_exts = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv"}
+        arc_exts = {".zip", ".rar", ".7z", ".tar", ".gz"}
+
+        filtered = []
+        for c in self.all_candidates:
+            # 1. Search text
             if search_text and (
-                search_text not in cand.filename.lower()
-                and (not cand.relative_path or search_text not in cand.relative_path.lower())
+                search_text not in c.filename.lower()
+                and search_text not in c.relative_path.lower()
             ):
                 continue
 
-            # Status filter
-            if selected_status != "All Statuses" and cand.status.value != selected_status:
+            # 2. Status filter
+            if status_filter != "All Statuses" and c.status.value != status_filter:
                 continue
 
-            # Origin filter
-            if selected_origin != "All Methods" and cand.source_method.value != selected_origin:
+            # 3. Method filter
+            if origin_filter != "All Methods" and c.source_method.value != origin_filter:
                 continue
 
-            self.filtered_candidates.append(cand)
+            # 4. Tree category selection
+            if self._selected_category_ext:
+                ext = c.extension.lower()
+                cat = self._selected_category_ext
+                if cat == "Images" and ext not in img_exts:
+                    continue
+                if cat == "Documents" and ext not in doc_exts:
+                    continue
+                if cat == "Videos" and ext not in vid_exts:
+                    continue
+                if cat == "Archives" and ext not in arc_exts:
+                    continue
+                if cat == "Other Files" and (
+                    ext in img_exts or ext in doc_exts or ext in vid_exts or ext in arc_exts
+                ):
+                    continue
+                if cat.startswith(".") and ext != cat:
+                    continue
 
-        self._populate_table()
+            filtered.append(c)
 
-    def _populate_table(self) -> None:
+        self.filtered_candidates = filtered
+        self._update_table()
+
+    def _update_table(self) -> None:
         self.table.blockSignals(True)
         self.table.setRowCount(len(self.filtered_candidates))
 
-        for row, cand in enumerate(self.filtered_candidates):
+        for row, c in enumerate(self.filtered_candidates):
             # Checkbox item
             chk_item = QTableWidgetItem()
-            chk_item.setFlags(
-                Qt.ItemFlag.ItemIsUserCheckable
-                | Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsSelectable
-            )
+            chk_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
             chk_item.setCheckState(Qt.CheckState.Unchecked)
-            chk_item.setData(Qt.ItemDataRole.UserRole, cand.candidate_id)
             self.table.setItem(row, 0, chk_item)
 
             # Filename
-            display_name = cand.relative_path or cand.filename
-            name_item = QTableWidgetItem(display_name)
-            name_item.setToolTip(f"ID: {cand.candidate_id}\nSHA256: {cand.sha256_hash or 'None'}")
-            self.table.setItem(row, 1, name_item)
+            file_item = QTableWidgetItem(c.filename)
+            file_item.setData(Qt.ItemDataRole.UserRole, c.candidate_id)
+            self.table.setItem(row, 1, file_item)
+
+            # Path / Origin
+            self.table.setItem(row, 2, QTableWidgetItem(c.relative_path or "/"))
 
             # Size
-            size_item = QTableWidgetItem(_format_size(cand.size_bytes))
-            size_item.setData(Qt.ItemDataRole.UserRole, cand.size_bytes)
-            self.table.setItem(row, 2, size_item)
+            size_item = QTableWidgetItem(_format_size(c.size_bytes))
+            size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 3, size_item)
 
-            # Format
-            fmt_str = cand.extension.upper() if cand.extension else "UNKNOWN"
-            self.table.setItem(row, 3, QTableWidgetItem(fmt_str))
+            # Type
+            type_item = QTableWidgetItem(c.extension.upper().lstrip(".") or "BIN")
+            self.table.setItem(row, 4, type_item)
 
-            # Origin / Method
-            self.table.setItem(row, 4, QTableWidgetItem(cand.source_method.value))
-
-            # Status
-            status_item = QTableWidgetItem(cand.status.value)
+            # Status pill
+            status_item = QTableWidgetItem(c.status.value)
+            if c.status == CandidateStatus.PREVIEW_VALIDATED:
+                status_item.setForeground(Qt.GlobalColor.green)
+            elif c.status == CandidateStatus.CORRUPTED:
+                status_item.setForeground(Qt.GlobalColor.red)
+            elif c.status == CandidateStatus.TRUNCATED:
+                status_item.setForeground(Qt.GlobalColor.yellow)
             self.table.setItem(row, 5, status_item)
 
-            # Source Offset
-            offset_item = QTableWidgetItem(f"0x{cand.source_offset:X}")
-            self.table.setItem(row, 6, offset_item)
+            # Method
+            method_item = QTableWidgetItem(c.source_method.value)
+            self.table.setItem(row, 6, method_item)
 
         self.table.blockSignals(False)
-        self._update_selection_summary()
+        self._update_selection_counter()
 
-    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+    def _on_table_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() == 0:
-            self._update_selection_summary()
+            self._update_selection_counter()
 
-    def _on_selection_changed(self) -> None:
-        selected_rows = self.table.selectionModel().selectedRows()
-        self.preview_btn.setEnabled(len(selected_rows) == 1)
-
-    def _update_selection_summary(self) -> None:
-        selected_count = 0
-        selected_bytes = 0
-
-        for row in range(self.table.rowCount()):
-            chk_item = self.table.item(row, 0)
-            if chk_item and chk_item.checkState() == Qt.CheckState.Checked:
-                selected_count += 1
-                size_item = self.table.item(row, 2)
-                if size_item:
-                    size_val = size_item.data(Qt.ItemDataRole.UserRole)
-                    if isinstance(size_val, int):
-                        selected_bytes += size_val
-
-        total_count = len(self.filtered_candidates)
-        self.selection_summary_lbl.setText(
-            f"{selected_count} of {total_count} files selected ({_format_size(selected_bytes)})"
+    def _update_selection_counter(self) -> None:
+        selected_ids = self._get_selected_candidate_ids()
+        cands_map = {c.candidate_id: c for c in self.all_candidates}
+        tot_bytes = sum(cands_map[cid].size_bytes for cid in selected_ids if cid in cands_map)
+        self.sel_count_lbl.setText(
+            f"{len(selected_ids):,} files selected ({_format_size(tot_bytes)})"
         )
-        self.recover_btn.setEnabled(selected_count > 0)
+        self.recover_btn.setEnabled(len(selected_ids) > 0)
 
     def _select_all(self) -> None:
         self.table.blockSignals(True)
@@ -303,7 +428,7 @@ class RecoveryResultsPage(QWidget):
             if item:
                 item.setCheckState(Qt.CheckState.Checked)
         self.table.blockSignals(False)
-        self._update_selection_summary()
+        self._update_selection_counter()
 
     def _deselect_all(self) -> None:
         self.table.blockSignals(True)
@@ -312,50 +437,46 @@ class RecoveryResultsPage(QWidget):
             if item:
                 item.setCheckState(Qt.CheckState.Unchecked)
         self.table.blockSignals(False)
-        self._update_selection_summary()
+        self._update_selection_counter()
 
     def _select_validated_only(self) -> None:
         self.table.blockSignals(True)
-        for row in range(self.table.rowCount()):
-            cand = self.filtered_candidates[row]
+        for row, c in enumerate(self.filtered_candidates):
             item = self.table.item(row, 0)
             if item:
-                if cand.status in (
-                    CandidateStatus.PREVIEW_VALIDATED,
-                    CandidateStatus.METADATA_RECOVERED,
-                    CandidateStatus.SIGNATURE_MATCHED,
-                ):
+                if c.status == CandidateStatus.PREVIEW_VALIDATED:
                     item.setCheckState(Qt.CheckState.Checked)
                 else:
                     item.setCheckState(Qt.CheckState.Unchecked)
         self.table.blockSignals(False)
-        self._update_selection_summary()
+        self._update_selection_counter()
 
     def _get_selected_candidate_ids(self) -> list[str]:
-        ids: list[str] = []
+        selected: list[str] = []
         for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item and item.checkState() == Qt.CheckState.Checked:
-                cand_id = item.data(Qt.ItemDataRole.UserRole)
-                if isinstance(cand_id, str):
-                    ids.append(cand_id)
-        return ids
+            chk = self.table.item(row, 0)
+            if chk and chk.checkState() == Qt.CheckState.Checked:
+                file_item = self.table.item(row, 1)
+                if file_item:
+                    cid = file_item.data(Qt.ItemDataRole.UserRole)
+                    if cid:
+                        selected.append(cid)
+        return selected
+
+    def _on_row_double_clicked(self, row: int, column: int) -> None:
+        if 0 <= row < len(self.filtered_candidates):
+            self.preview_requested.emit(self.filtered_candidates[row])
 
     def _on_preview_clicked(self) -> None:
-        selected_rows = self.table.selectionModel().selectedRows()
-        if len(selected_rows) == 1:
-            row = selected_rows[0].row()
+        rows = self.table.selectedItems()
+        if rows:
+            row = rows[0].row()
             if 0 <= row < len(self.filtered_candidates):
-                cand = self.filtered_candidates[row]
-                self.preview_requested.emit(cand)
-
-    def _on_table_double_click(self, item: QTableWidgetItem) -> None:
-        row = item.row()
-        if 0 <= row < len(self.filtered_candidates):
-            cand = self.filtered_candidates[row]
-            self.preview_requested.emit(cand)
+                self.preview_requested.emit(self.filtered_candidates[row])
+        elif self.filtered_candidates:
+            self.preview_requested.emit(self.filtered_candidates[0])
 
     def _on_recover_clicked(self) -> None:
-        cand_ids = self._get_selected_candidate_ids()
-        if cand_ids:
-            self.recovery_requested.emit(cand_ids)
+        selected_ids = self._get_selected_candidate_ids()
+        if selected_ids:
+            self.recovery_requested.emit(selected_ids)

@@ -48,3 +48,6 @@ desktop.ini
 out/
 tmp/
 *.log
+*.spec
+website/downloads/
+packaging/payload.zip

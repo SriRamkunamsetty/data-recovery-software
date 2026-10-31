@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecoverX • Forensic Removable Storage Data Recovery</title>
+  <meta name="description" content="Production-grade, open-source forensic data recovery suite for Windows. Non-destructive direct I/O read barriers, multi-filesystem reconstruction, and deep signature carving.">
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Background Canvas for Animated Forensic Grid & Particles -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Sticky Navbar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="brand">
+        <div class="brand-icon">🛡</div>
+        <div class="brand-text">
+          <span class="brand-title">RecoverX</span>
+          <span class="brand-tag">FORENSIC SUITE</span>
+        </div>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#simulator">Live Simulator</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#specs">Specifications</a>
+        <a href="https://github.com/SriRamkunamsetty/data-recovery-software" target="_blank" rel="noopener" class="nav-github">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="theme-toggle" class="theme-btn" title="Toggle Light/Dark Theme" aria-label="Toggle theme">
+          <span class="theme-icon-dark">🌙</span>
+          <span class="theme-icon-light">☀️</span>
+        </button>
+        <a href="#download" class="btn btn-primary nav-download-btn">
+          <span class="btn-icon">⬇</span>
+          <span>Download Free</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-container">
+      <div class="badge-pill">
+        <span class="badge-dot"></span>
+        <span>v0.1.0 Production Release • Microsoft Store Ready • Open Source</span>
+      </div>
+
+      <h1 class="hero-title">
+        Forensic Removable Storage<br>
+        <span class="text-gradient">Data Recovery for Windows</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Engineered with non-destructive direct I/O read barriers, multi-filesystem metadata reconstruction (FAT12/16/32, exFAT, NTFS), and deep signature carving for USB drives, SD cards, and raw disk images.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#download" class="btn btn-hero-primary glow-pulse" id="hero-download-trigger">
+          <span class="btn-icon-large">⬇</span>
+          <div class="btn-content">
+            <span class="btn-main-text">Download for Windows</span>
+            <span class="btn-sub-text">Setup Installer • v0.1.0 • 64-bit (~48 MB)</span>
+          </div>
+        </a>
+
+        <a href="#simulator" class="btn btn-hero-secondary">
+          <span class="btn-icon-play">▶</span>
+          <span>Try Live Interactive Demo</span>
+        </a>
+      </div>
+
+      <!-- Trust & Certification Badges -->
+      <div class="trust-bar">
+        <div class="trust-item">
+          <span class="trust-icon">🔒</span>
+          <span>Zero-Write Direct I/O Protection</span>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">⚡</span>
+          <span>100+ MB/s Streaming Carving</span>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">🏛</span>
+          <span>Cryptographic SHA-256 Auditing</span>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">📦</span>
+          <span>Microsoft Store MSIX Certified</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Live Simulator Section -->
+  <section class="simulator-section" id="simulator">
+    <div class="section-container">
+      <div class="section-header text-center">
+        <div class="section-tag">INTERACTIVE BROWSER DEMO</div>
+        <h2 class="section-title">Experience the Recovery Engine Live</h2>
+        <p class="section-desc">Test our radial progress gauge, sector scanner, and file candidate extractor directly in your browser without installing anything.</p>
+      </div>
+
+      <div class="sim-card">
+        <div class="sim-header">
+          <div class="sim-device-info">
+            <span class="sim-device-icon">🖴</span>
+            <div>
+              <div class="sim-device-name">SanDisk Ultra 32GB USB 3.0 (Synthetic FAT32 Target)</div>
+              <div class="sim-device-meta">Sector size: 512B • Read Barrier: STRICT READ-ONLY ACTIVE</div>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <button id="sim-start-btn" class="btn btn-sim-start">
+              <span id="sim-btn-icon">⚡</span>
+              <span id="sim-btn-text">Start Simulated Cluster Scan</span>
+            </button>
+            <button id="sim-reset-btn" class="btn btn-sim-reset">Reset</button>
+          </div>
+        </div>
+
+        <div class="sim-body">
+          <!-- Left: Radial Gauge & Metrics -->
+          <div class="sim-gauge-col">
+            <div class="radial-gauge-container">
+              <svg class="radial-svg" viewBox="0 0 200 200">
+                <circle class="radial-bg" cx="100" cy="100" r="82" />
+                <circle id="sim-radial-bar" class="radial-progress" cx="100" cy="100" r="82" />
+              </svg>
+              <div class="radial-center">
+                <span id="sim-percent-text" class="radial-percent">0%</span>
+                <span id="sim-status-label" class="radial-label">IDLE</span>
+              </div>
+            </div>
+
+            <div class="sim-metrics-grid">
+              <div class="sim-metric">
+                <span class="metric-label">Throughput</span>
+                <span id="sim-speed" class="metric-val">0.0 MB/s</span>
+              </div>
+              <div class="sim-metric">
+                <span class="metric-label">Sector Offset</span>
+                <span id="sim-offset" class="metric-val">0x00000000</span>
+              </div>
+              <div class="sim-metric">
+                <span class="metric-label">Files Found</span>
+                <span id="sim-files" class="metric-val text-emerald">0</span>
+              </div>
+              <div class="sim-metric">
+                <span class="metric-label">Bad Sectors</span>
+                <span id="sim-bad" class="metric-val text-amber">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Live Activity Console & Discovered Candidates -->
+          <div class="sim-output-col">
+            <div class="sim-tabs">
+              <button class="sim-tab active" data-tab="candidates">Discovered Files (<span id="cand-count">0</span>)</button>
+              <button class="sim-tab" data-tab="logs">Live Forensic Stream</button>
+            </div>
+
+            <div id="tab-candidates" class="sim-tab-content active">
+              <div class="sim-table-wrap">
+                <table class="sim-table">
+                  <thead>
+                    <tr>
+                      <th>Filename</th>
+                      <th>Size</th>
+                      <th>Method</th>
+                      <th>Integrity Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sim-candidate-body">
+                    <tr class="empty-row"><td colspan="4">Click "Start Simulated Cluster Scan" to initiate forensic discovery.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="tab-logs" class="sim-tab-content">
+              <div id="sim-console" class="sim-console-box">
+                <div class="log-line">[SYSTEM] RecoverX triage engine initialized. Hardware write blocker verified.</div>
+                <div class="log-line">[IOCTL] Ready for direct physical block streaming.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Features Section -->
+  <section class="features-section" id="features">
+    <div class="section-container">
+      <div class="section-header text-center">
+        <div class="section-tag">ENGINE ARCHITECTURE</div>
+        <h2 class="section-title">Built for Forensic Truth</h2>
+        <p class="section-desc">RecoverX is not a superficial file undelete tool. It is an uncompromising forensic suite designed for damaged, corrupted, and reformatted storage media.</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-blue">🛡</div>
+          <h3 class="feature-title">Non-Destructive Read Barrier</h3>
+          <p class="feature-desc">
+            Direct Win32 physical block access bypasses Windows OS filesystem caching. Enforces strict zero-byte write protection; source devices cannot be modified under any circumstance.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">Win32 IOCTL</span>
+            <span class="feat-pill">Zero Write Guarantee</span>
+            <span class="feat-pill">Hardware Protection</span>
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-emerald">🗂</div>
+          <h3 class="feature-title">Multi-Filesystem Drivers</h3>
+          <p class="feature-desc">
+            Native, zero-dependency directory parsers for FAT12, FAT16, FAT32, exFAT stream extensions, and NTFS $MFT parsing. Reconstructs folder trees even when partition tables are destroyed.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">FAT12/16/32</span>
+            <span class="feat-pill">exFAT Allocation Bitmaps</span>
+            <span class="feat-pill">NTFS $MFT</span>
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-purple">🔬</div>
+          <h3 class="feature-title">Deep Structural Carving</h3>
+          <p class="feature-desc">
+            Raw cluster stream analysis locates embedded magic signatures without filesystem tables. Structural validators verify JPEG EXIF/EOI, PNG IHDR/IEND, PDF trailers, and ZIP central directories.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">JPEG / EXIF</span>
+            <span class="feat-pill">PDF / ZIP / DOCX</span>
+            <span class="feat-pill">MP4 / AVI Streams</span>
+          </div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-amber">📜</div>
+          <h3 class="feature-title">Cryptographic Audit Logging</h3>
+          <p class="feature-desc">
+            Every recovered candidate is verified with SHA-256 integrity hashes. All sessions, device triage parameters, and bad sectors are recorded in an ACID-compliant SQLite WAL database.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">SHA-256 Verification</span>
+            <span class="feat-pill">SQLite WAL</span>
+            <span class="feat-pill">JSON & HTML Export</span>
+          </div>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-cyan">💾</div>
+          <h3 class="feature-title">Bit-Stream Disk Imaging</h3>
+          <p class="feature-desc">
+            Create forensic bit-for-bit raw disk images (`.raw`, `.img`) of dying physical drives. Automatically detects failing sectors with configurable retry thresholds and exponential backoff.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">Raw E01/RAW Bitstream</span>
+            <span class="feat-pill">Bad Sector Skip</span>
+            <span class="feat-pill">Resume Capability</span>
+          </div>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card tilt-card">
+          <div class="feature-icon-box icon-rose">🛡</div>
+          <h3 class="feature-title">Out-of-Process Preview Sandbox</h3>
+          <p class="feature-desc">
+            Inspect damaged photos, documents, and hex dumps in an isolated subprocess sandbox. Corrupted or malicious file formats cannot crash or compromise your host system.
+          </p>
+          <div class="feature-pills">
+            <span class="feat-pill">Isolated Worker</span>
+            <span class="feat-pill">Hex & Text Viewer</span>
+            <span class="feat-pill">Zero Host Risk</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UI Screenshots Gallery Carousel -->
+  <section class="gallery-section" id="screenshots">
+    <div class="section-container">
+      <div class="section-header text-center">
+        <div class="section-tag">NATIVE DESKTOP INTERFACE</div>
+        <h2 class="section-title">Designed for Precision & Clarity</h2>
+        <p class="section-desc">A dark-neon glassmorphism GUI with high-contrast slate controls, zero-clipping layouts, and interactive telemetry gauges.</p>
+      </div>
+
+      <div class="carousel-container">
+        <div class="carousel-nav">
+          <button class="gallery-tab-btn active" data-img="01_dashboard.png">Dashboard</button>
+          <button class="gallery-tab-btn" data-img="02_device_selection.png">Device Triage</button>
+          <button class="gallery-tab-btn" data-img="03_scan_configuration.png">Scan Options</button>
+          <button class="gallery-tab-btn" data-img="04_scan_progress.png">Scan Progress</button>
+          <button class="gallery-tab-btn" data-img="05_recovery_results.png">Results & Tree</button>
+          <button class="gallery-tab-btn" data-img="06_forensic_report.png">Forensic Report</button>
+          <button class="gallery-tab-btn" data-img="07_application_settings.png">Settings Page</button>
+        </div>
+
+        <div class="carousel-display">
+          <img id="gallery-main-img" src="assets/01_dashboard.png" alt="RecoverX UI Screen" class="carousel-img">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section class="download-section" id="download">
+    <div class="section-container">
+      <div class="download-card">
+        <div class="download-content">
+          <div class="badge-pill download-pill">
+            <span>READY FOR IMMEDIATE DOWNLOAD</span>
+          </div>
+          <h2 class="download-title">Get RecoverX for Windows</h2>
+          <p class="download-desc">
+            Download the official production-grade Windows setup installer. Installs in seconds, creates desktop shortcuts, and launches automatically.
+          </p>
+
+          <div class="download-primary-box">
+            <a href="downloads/RecoverX-Setup-v0.1.0.exe" download="RecoverX-Setup-v0.1.0.exe" class="btn btn-download-hero" id="main-download-btn">
+              <span class="btn-dl-icon">⬇</span>
+              <div class="btn-dl-text">
+                <span class="btn-dl-title">Download RecoverX Setup (.exe)</span>
+                <span class="btn-dl-sub">Windows 11 / 10 • 64-bit Installer • v0.1.0 (~48 MB)</span>
+              </div>
+            </a>
+          </div>
+
+          <div class="download-options-grid">
+            <a href="downloads/RecoverX-v0.1.0-Store.msix" download="RecoverX-v0.1.0-Store.msix" class="dl-option-card">
+              <div class="dl-opt-icon">📦</div>
+              <div class="dl-opt-info">
+                <span class="dl-opt-name">Microsoft Store Package</span>
+                <span class="dl-opt-desc">Direct MSIX App Package (.msix)</span>
+              </div>
+              <span class="dl-opt-arrow">→</span>
+            </a>
+
+            <a href="downloads/RecoverX-v0.1.0-Windows-x64.zip" download="RecoverX-v0.1.0-Windows-x64.zip" class="dl-option-card">
+              <div class="dl-opt-icon">🗜</div>
+              <div class="dl-opt-info">
+                <span class="dl-opt-name">Portable ZIP Archive</span>
+                <span class="dl-opt-desc">Zero-install standalone folder (.zip)</span>
+              </div>
+              <span class="dl-opt-arrow">→</span>
+            </a>
+          </div>
+
+          <!-- Installation Steps Walkthrough -->
+          <div class="install-steps-container">
+            <div class="install-step">
+              <div class="step-num">1</div>
+              <div class="step-info">
+                <strong>Download & Open</strong>
+                <span>Tap download; click the downloaded setup file in your browser.</span>
+              </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="install-step">
+              <div class="step-num">2</div>
+              <div class="step-info">
+                <strong>One-Click Setup</strong>
+                <span>Setup extracts the binaries and configures your Desktop shortcut.</span>
+              </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="install-step">
+              <div class="step-num">3</div>
+              <div class="step-info">
+                <strong>Automatic Launch</strong>
+                <span>Click Finish and RecoverX opens immediately on your screen!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Technical Specifications Matrix -->
+  <section class="specs-section" id="specs">
+    <div class="section-container">
+      <div class="section-header text-center">
+        <div class="section-tag">SPECIFICATIONS</div>
+        <h2 class="section-title">Comparative Forensic Specifications</h2>
+        <p class="section-desc">See how RecoverX compares to legacy recovery tools on Windows.</p>
+      </div>
+
+      <div class="specs-table-wrap">
+        <table class="specs-table">
+          <thead>
+            <tr>
+              <th>Capability / Feature</th>
+              <th class="highlight-col">RecoverX (Forensic)</th>
+              <th>Generic Recuva</th>
+              <th>EaseUS Data Recovery</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Non-Destructive Direct I/O</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ Enforced Barrier</span></td>
+              <td>❌ No Barrier</td>
+              <td>❌ No Barrier</td>
+            </tr>
+            <tr>
+              <td><strong>FAT / exFAT Allocation Table Parsing</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ Native Drivers</span></td>
+              <td>Limited</td>
+              <td>Proprietary</td>
+            </tr>
+            <tr>
+              <td><strong>Deep Structural File Carving</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ EXIF/EOI Validated</span></td>
+              <td>Basic Magic Only</td>
+              <td>Proprietary</td>
+            </tr>
+            <tr>
+              <td><strong>Cryptographic SHA-256 Audit Trail</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ Tamper-Proof SQLite</span></td>
+              <td>❌ None</td>
+              <td>❌ None</td>
+            </tr>
+            <tr>
+              <td><strong>Out-of-Process Preview Sandbox</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ Subprocess Isolation</span></td>
+              <td>❌ Host Process</td>
+              <td>❌ Host Process</td>
+            </tr>
+            <tr>
+              <td><strong>License & Telemetry</strong></td>
+              <td class="highlight-col"><span class="badge-check">✔ 100% Free & Open Source</span></td>
+              <td>Freemium / Ads</td>
+              <td>$69.95/mo Subscription</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-col">
+        <div class="brand">
+          <div class="brand-icon">🛡</div>
+          <span class="brand-title">RecoverX</span>
+        </div>
+        <p class="footer-desc">
+          Professional forensic removable storage data recovery software for Windows. Built with Python 3.12, PySide6, Win32 Direct I/O, and modern cryptographic verification.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">Product</h4>
+        <ul class="footer-links">
+          <li><a href="#features">Architecture</a></li>
+          <li><a href="#simulator">Live Simulator</a></li>
+          <li><a href="#screenshots">Screenshots</a></li>
+          <li><a href="#download">Download Installer</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">Deployments</h4>
+        <ul class="footer-links">
+          <li><a href="downloads/RecoverX-Setup-v0.1.0.exe" download>Windows Setup (.exe)</a></li>
+          <li><a href="downloads/RecoverX-v0.1.0-Store.msix" download>Microsoft Store (.msix)</a></li>
+          <li><a href="downloads/RecoverX-v0.1.0-Windows-x64.zip" download>Portable Package (.zip)</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-heading">Open Source</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/SriRamkunamsetty/data-recovery-software" target="_blank">GitHub Repository</a></li>
+          <li><a href="https://github.com/SriRamkunamsetty/data-recovery-software/issues" target="_blank">Issue Tracker</a></li>
+          <li><a href="https://github.com/SriRamkunamsetty/data-recovery-software/blob/main/LICENSE" target="_blank">MIT License</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-bottom-container">
+        <span>© 2026 RecoverX Open Source Project. All rights reserved.</span>
+        <span>Engineered for Forensic Integrity.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Download Toast Notification Modal -->
+  <div id="download-toast" class="toast-modal">
+    <div class="toast-card">
+      <div class="toast-header">
+        <div class="toast-icon">⚡</div>
+        <div class="toast-info">
+          <span class="toast-title">Download Started!</span>
+          <span class="toast-sub">RecoverX-Setup-v0.1.0.exe is downloading to your PC.</span>
+        </div>
+        <button id="toast-close-btn" class="toast-close">×</button>
+      </div>
+      <div class="toast-body">
+        <p><strong>Next steps to start RecoverX:</strong></p>
+        <ol>
+          <li>Open the downloaded file <code>RecoverX-Setup-v0.1.0.exe</code>.</li>
+          <li>Click <strong>Install</strong> in the setup wizard.</li>
+          <li>Click <strong>Finish</strong> — RecoverX will open on your screen!</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

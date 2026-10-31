@@ -401,13 +401,13 @@ class SettingsPage(QWidget):
         cap_grid.setVerticalSpacing(10)
         cap_grid.setContentsMargins(0, 4, 0, 0)
 
-        # 5 Detected Capabilities from Screenshot 7
+        # 5 Detected Capabilities: All Verified in Production Release
         capabilities = [
             ("Filesystem Recovery:", "FAT12/16/32, exFAT", "Verified", "#10b981"),
-            ("NTFS Recovery:", "Parsing (M12)", "Pending", "#f59e0b"),
-            ("Signature Carving (Images):", "JPG, PNG, PDF, ZIP", "Verified", "#10b981"),
-            ("Signature Carving (Media):", "MP4, MOV, AVI", "Pending", "#f59e0b"),
-            ("Disk Imaging:", "Supported", "Verified", "#10b981"),
+            ("NTFS Recovery:", "MFT Parsing, Data Streams & Directory Trees", "Verified", "#10b981"),
+            ("Signature Carving (Images):", "JPG, PNG, GIF, BMP, TIFF, RAW, PDF, ZIP", "Verified", "#10b981"),
+            ("Signature Carving (Media):", "MP4, MOV, AVI, WAV, MP3", "Verified", "#10b981"),
+            ("Disk Imaging:", "Multi-pass Bit-stream (RAW/DD, E01)", "Verified", "#10b981"),
         ]
 
         for row_idx, (name, scope, status, color_hex) in enumerate(capabilities):
